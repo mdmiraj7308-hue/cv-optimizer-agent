@@ -1,0 +1,51 @@
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    # ── OpenAI ────────────────────────────────────────────────────────────────
+    openai_api_key: str = Field(..., description="OpenAI secret key")
+    openai_model: str = Field("gpt-4o-mini", description="Model used for both agents")
+
+    # ── Supabase ──────────────────────────────────────────────────────────────
+    supabase_url: str = Field(..., description="Supabase project URL")
+    supabase_anon_key: str = Field(..., description="Supabase anon/public key")
+    supabase_service_role_key: str = Field(
+        ..., description="Supabase service-role key (used by backend only)"
+    )
+
+    # ── Apify ─────────────────────────────────────────────────────────────────
+    apify_api_token: str = Field(..., description="Apify API token")
+    apify_actor_id: str = Field(
+        "curious_coder/linkedin-jobs-scraper",
+        description="Apify actor ID for LinkedIn Jobs scraper",
+    )
+
+    # ── FastAPI / internal ────────────────────────────────────────────────────
+    fastapi_base_url: str = Field(
+        "http://localhost:8000",
+        description="Base URL Streamlit uses to call FastAPI internally",
+    )
+    streamlit_base_url: str = Field(
+        "http://localhost:8501",
+        description="Streamlit app URL shown on the email verification welcome page",
+    )
+    auth_confirm_url: str = Field(
+        "http://localhost:8000/auth/confirm",
+        description="Supabase email confirmation redirect URL (must match Supabase Auth settings)",
+    )
+
+    # ── Scheduler ─────────────────────────────────────────────────────────────
+    scheduler_timezone: str = Field(
+        "Asia/Dhaka", description="IANA timezone string for APScheduler cron jobs"
+    )
+
+
+settings = Settings()
