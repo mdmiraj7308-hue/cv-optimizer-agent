@@ -1,5 +1,7 @@
+import os
+
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field
 
 
 class Settings(BaseSettings):
@@ -28,6 +30,12 @@ class Settings(BaseSettings):
         description="Apify actor ID for LinkedIn Jobs scraper",
     )
 
+    # ── Public URL (single-container / Render deploy) ─────────────────────────
+    public_base_url: str | None = Field(
+        None,
+        description="Single public URL for nginx deploy; overrides the three URL settings below",
+    )
+
     # ── FastAPI / internal ────────────────────────────────────────────────────
     fastapi_base_url: str = Field(
         "http://localhost:8000",
@@ -46,6 +54,18 @@ class Settings(BaseSettings):
     scheduler_timezone: str = Field(
         "Asia/Dhaka", description="IANA timezone string for APScheduler cron jobs"
     )
+
+    @model_validator(mode="after")
+    def apply_single_public_url(self) -> "Settings":
+        """Apply PUBLIC_BASE_URL or Render's RENDER_EXTERNAL_URL for one-URL deploys."""
+        base = (self.public_base_url or os.getenv("RENDER_EXTERNAL_URL", "")).rstrip("/")
+        if not base:
+            return self
+        # Streamlit and FastAPI share a container — keep API calls on localhost.
+        self.fastapi_base_url = "http://127.0.0.1:8000"
+        self.streamlit_base_url = base
+        self.auth_confirm_url = f"{base}/auth/confirm"
+        return self
 
 
 settings = Settings()

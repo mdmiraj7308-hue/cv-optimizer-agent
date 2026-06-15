@@ -14,6 +14,7 @@ from supabase import create_client
 
 from src.config.settings import settings
 from src.core.tools import parse_salary, delete_user_account, MAX_INPUT_CHARS, validate_char_limits
+from src.ui.theme import sidebar_card, sidebar_kv_rows, user_badge
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -215,7 +216,7 @@ def _country_selectbox(saved_country: str) -> str:
 # ── Auth section ──────────────────────────────────────────────────────────────
 
 def _render_auth():
-    st.sidebar.header("Account")
+    sidebar_card("Account", "<p style='color:#94A3B8;font-size:0.85rem;margin:0;'>Sign in or create an account to get started.</p>")
     tab_in, tab_up = st.sidebar.tabs(["Sign In", "Sign Up"])
 
     with tab_in:
@@ -263,16 +264,11 @@ def _render_profile(user_id: str):
     has_saved = _profile_is_complete(profile)
 
     st.sidebar.divider()
-    st.sidebar.header("Your Profile")
 
     # ── Job Preferences ───────────────────────────────────────────────────────
-    st.sidebar.subheader("🎯 Job Preferences")
-
-    # Edit mode flag
     editing = st.session_state.get("editing_profile", not has_saved)
 
     if not editing:
-        # ── Read-only summary ─────────────────────────────────────────────────
         roles_str = ", ".join(profile.get("target_roles") or []) or "—"
         country   = profile.get("location") or "—"
         jtype     = (profile.get("job_type") or "any").capitalize()
@@ -282,30 +278,35 @@ def _render_profile(user_id: str):
         date_str  = _KEY_TO_DATE.get(date_key, date_key.replace("_", " ").title())
         salary    = profile.get("salary_raw") or "—"
 
-        st.sidebar.markdown(
-            f"**Roles:** {roles_str}  \n"
-            f"**Country:** {country}  \n"
-            f"**Job type:** {jtype}  \n"
-            f"**Experience:** {exp_str}  \n"
-            f"**Date posted:** {date_str}  \n"
-            f"**Salary:** {salary}"
+        sidebar_card(
+            "🎯 Job Preferences",
+            sidebar_kv_rows([
+                ("Roles", roles_str),
+                ("Country", country),
+                ("Job type", jtype),
+                ("Experience", exp_str),
+                ("Date posted", date_str),
+                ("Salary", salary),
+            ]),
         )
         if profile.get("original_cv_url"):
             st.sidebar.caption(
                 f"✅ CV on file: `{profile['original_cv_url'].split('/')[-1]}`"
             )
 
-        if st.sidebar.button("✏️ Edit / Update Profile", key="btn_edit_profile",
-                             use_container_width=True):
+        if st.sidebar.button("📄 Edit / Update Profile", key="btn_edit_profile",
+                             use_container_width=True, type="primary"):
             st.session_state["editing_profile"] = True
             st.rerun()
 
     else:
-        # ── Editable fields (st.form prevents rerun on every keystroke) ─────
-        st.sidebar.caption("Fill every field below, then click **Save Profile**.")
+        sidebar_card(
+            "🎯 Job Preferences",
+            "<p style='color:#94A3B8;font-size:0.82rem;margin:0;'>Fill every field, then click <strong>Save Profile</strong>.</p>",
+        )
 
         with st.sidebar.form("profile_form", clear_on_submit=False, border=False):
-            st.markdown("**📄 CV (PDF) ***")
+            st.markdown("📄 CV (PDF)")
             cv_file = st.file_uploader(
                 "Upload your CV",
                 type=["pdf"],
@@ -318,7 +319,7 @@ def _render_profile(user_id: str):
                     "(upload a new PDF to replace)"
                 )
 
-            st.markdown("**Target roles (max 3, comma-separated) ***")
+            st.markdown("Target roles (max 3, comma-separated)")
             roles_raw = st.text_input(
                 "Target roles",
                 value=", ".join(profile.get("target_roles") or []),
@@ -330,7 +331,7 @@ def _render_profile(user_id: str):
             _char_counter("Roles", roles_raw)
             st.caption("Up to 3 roles · 10 jobs each · max 30 per scan")
 
-            st.markdown("**Preferred country ***")
+            st.markdown("Preferred country")
             country = _country_selectbox(profile.get("location") or "")
 
             saved_jtype = (profile.get("job_type") or "any").lower()
@@ -352,7 +353,7 @@ def _render_profile(user_id: str):
                 "Date posted", DATE_POSTED_OPTIONS, index=date_idx, key="date_posted_select",
             )
 
-            st.markdown("**Salary range ***")
+            st.markdown("Salary range")
             salary_raw = st.text_input(
                 "Salary range",
                 value=profile.get("salary_raw") or "",
@@ -429,77 +430,76 @@ def _render_profile(user_id: str):
 # ── Run mode ──────────────────────────────────────────────────────────────────
 
 def _render_run_mode(user_id: str, profile: dict):
-    st.sidebar.divider()
-    st.sidebar.subheader("🚀 Run Mode")
-
-    run_mode = st.sidebar.radio(
-        "How should jobs be scanned?",
-        options=["Manual", "Scheduled"],
-        index=0 if profile.get("run_mode", "manual") == "manual" else 1,
-        key="run_mode_radio",
-        horizontal=True,
+    st.sidebar.markdown(
+        '<div class="sidebar-card-title" style="margin-top:0.5rem;">⚙️ Run Mode</div>',
+        unsafe_allow_html=True,
     )
 
-    run_hour: int | None = None
-
-    if run_mode == "Scheduled":
-        saved_hour = profile.get("run_hour") or 9
-        run_hour   = st.sidebar.selectbox(
-            "Daily run hour", list(range(24)), index=saved_hour,
-            format_func=lambda h: HOUR_LABELS[h], key="run_hour_select",
+    with st.sidebar.container(border=True):
+        run_mode = st.radio(
+            "How should jobs be scanned?",
+            options=["Manual", "Scheduled"],
+            index=0 if profile.get("run_mode", "manual") == "manual" else 1,
+            key="run_mode_radio",
+            horizontal=True,
         )
-        st.sidebar.caption(
-            f"Scans every day at **{HOUR_LABELS[run_hour]}** ({settings.scheduler_timezone})."
-        )
-    else:
-        st.sidebar.caption("Each **Run Now** click runs one LinkedIn scan (~20 s).")
-        if st.sidebar.button("▶ Run Now", key="btn_run_now", use_container_width=True):
-            with st.sidebar.spinner("Scanning jobs…"):
-                try:
-                    resp = httpx.post(
-                        f"{settings.fastapi_base_url}/api/run/{user_id}", timeout=360,
-                    )
-                    resp.raise_for_status()
-                    data = resp.json()
-                    st.sidebar.success(f"Found {data.get('jobs_saved', 0)} new job(s)!")
-                    st.session_state["jobs_refreshed"] = True
-                    st.rerun()
-                except Exception as exc:
-                    st.sidebar.error(f"Pipeline failed: {exc}")
 
-    # Save run-mode setting — only on explicit button click, never automatically
-    if run_mode == "Scheduled" and run_hour is not None:
-        if st.sidebar.button("💾 Save Schedule", key="btn_save_schedule",
-                             use_container_width=True):
-            _save_profile(user_id, {"run_mode": "scheduled", "run_hour": run_hour})
-            st.session_state["profile"] = {
-                **st.session_state.get("profile", {}),
-                "run_mode": "scheduled", "run_hour": run_hour,
-            }
-            try:
-                httpx.post(
-                    f"{settings.fastapi_base_url}/api/schedule/{user_id}",
-                    json={"run_hour": run_hour}, timeout=10,
-                )
-            except Exception:
-                pass
-            st.sidebar.success("Schedule saved!")
-    elif run_mode == "Manual":
-        # Only persist when the run mode actually changed away from scheduled
-        if profile.get("run_mode") == "scheduled":
-            if st.sidebar.button("💾 Switch to Manual", key="btn_save_manual",
-                                 use_container_width=True):
-                _save_profile(user_id, {"run_mode": "manual"})
+        run_hour: int | None = None
+
+        if run_mode == "Scheduled":
+            saved_hour = profile.get("run_hour") or 9
+            run_hour = st.selectbox(
+                "Daily run hour", list(range(24)), index=saved_hour,
+                format_func=lambda h: HOUR_LABELS[h], key="run_hour_select",
+            )
+            st.caption(
+                f"Scans every day at **{HOUR_LABELS[run_hour]}** ({settings.scheduler_timezone})."
+            )
+        else:
+            st.caption("Each **Run Now** click runs one LinkedIn scan (~20 s).")
+            if st.button("▶ Run Now", key="btn_run_now", use_container_width=True, type="primary"):
+                with st.spinner("Scanning jobs…"):
+                    try:
+                        resp = httpx.post(
+                            f"{settings.fastapi_base_url}/api/run/{user_id}", timeout=360,
+                        )
+                        resp.raise_for_status()
+                        data = resp.json()
+                        st.success(f"Found {data.get('jobs_saved', 0)} new job(s)!")
+                        st.session_state["jobs_refreshed"] = True
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(f"Pipeline failed: {exc}")
+
+        if run_mode == "Scheduled" and run_hour is not None:
+            if st.button("💾 Save Schedule", key="btn_save_schedule", use_container_width=True):
+                _save_profile(user_id, {"run_mode": "scheduled", "run_hour": run_hour})
                 st.session_state["profile"] = {
-                    **st.session_state.get("profile", {}), "run_mode": "manual",
+                    **st.session_state.get("profile", {}),
+                    "run_mode": "scheduled", "run_hour": run_hour,
                 }
                 try:
-                    httpx.delete(
-                        f"{settings.fastapi_base_url}/api/schedule/{user_id}", timeout=5,
+                    httpx.post(
+                        f"{settings.fastapi_base_url}/api/schedule/{user_id}",
+                        json={"run_hour": run_hour}, timeout=10,
                     )
                 except Exception:
                     pass
-                st.sidebar.success("Switched to manual mode.")
+                st.success("Schedule saved!")
+        elif run_mode == "Manual":
+            if profile.get("run_mode") == "scheduled":
+                if st.button("💾 Switch to Manual", key="btn_save_manual", use_container_width=True):
+                    _save_profile(user_id, {"run_mode": "manual"})
+                    st.session_state["profile"] = {
+                        **st.session_state.get("profile", {}), "run_mode": "manual",
+                    }
+                    try:
+                        httpx.delete(
+                            f"{settings.fastapi_base_url}/api/schedule/{user_id}", timeout=5,
+                        )
+                    except Exception:
+                        pass
+                    st.success("Switched to manual mode.")
 
 
 # ── Danger zone ───────────────────────────────────────────────────────────────
@@ -551,8 +551,8 @@ def render_sidebar():
         user_id = st.session_state["user_id"]
         email   = st.session_state.get("user_email", "")
 
-        st.sidebar.markdown(f"**Signed in as** `{email}`")
-        if st.sidebar.button("Sign Out", key="btn_signout"):
+        user_badge(email)
+        if st.sidebar.button("Sign Out", key="btn_signout", use_container_width=True):
             _clear_persisted_session()
             for key in ["user_id", "user_email", "access_token", "refresh_token",
                         "profile", "editing_profile", "cached_jobs",

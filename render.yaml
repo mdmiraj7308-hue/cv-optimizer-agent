@@ -1,0 +1,29 @@
+# Render Blueprint — single URL for Streamlit + FastAPI via nginx
+# Docs: https://render.com/docs/blueprint-spec
+#
+# Render auto-sets RENDER_EXTERNAL_URL; settings.py uses it for all public URLs.
+# After first deploy, add your Render URL to Supabase Auth redirect URLs.
+
+services:
+  - type: web
+    name: job-finder
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: APIFY_API_TOKEN
+        sync: false
+      - key: APIFY_ACTOR_ID
+        value: curious_coder/linkedin-jobs-scraper
+      - key: SCHEDULER_TIMEZONE
+        value: Asia/Dhaka

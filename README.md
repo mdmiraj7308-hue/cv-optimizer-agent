@@ -1,86 +1,226 @@
 # AI Career Automation Assistant
 
-A production-grade, multi-tenant AI career assistant that scrapes LinkedIn jobs via Apify, evaluates each posting against your CV using GPT-4o-mini, and on-demand generates an ATS-optimised PDF CV for any job — all inside a Streamlit + FastAPI app backed by Supabase.
+A full-stack AI career assistant that scrapes LinkedIn jobs, scores each posting against your CV, and generates ATS-optimised PDFs on demand — built with Streamlit, FastAPI, LangGraph, and Supabase.
+
+**Live Demo:** [https://your-app.onrender.com](https://your-app.onrender.com)  
+*Hosted on Render free tier — first load after idle may take ~30 seconds. Sign-up required for full features.*
+
+<!-- Optional: uncomment when you have a pre-seeded demo account
+**Demo account**
+- Email: `demo@example.com`
+- Password: `YourDemoPassword`
+-->
 
 ---
 
-## Quick Start
+## What it does
+
+1. **Sign up & upload your CV** — secure auth via Supabase; PDF stored in private storage.
+2. **Set job preferences** — target roles, location, salary, remote/onsite, experience level.
+3. **Run the pipeline** — scrapes recent LinkedIn jobs (Apify), evaluates each with GPT-4o-mini, saves compatibility scores.
+4. **Review job cards** — sorted by score with summaries and apply links.
+5. **Generate optimised CV** — on-demand, job-tailored ATS PDF uploaded to Supabase Storage.
+
+---
+
+## Screenshots
+
+<!-- Replace with your own images, e.g. docs/screenshots/dashboard.png -->
+
+| Dashboard | Job cards | Sidebar |
+|---|---|---|
+| *Add screenshot* | *Add screenshot* | *Add screenshot* |
+
+---
+
+## Tech stack
+
+| Layer | Technologies |
+|---|---|
+| **Frontend** | Streamlit |
+| **Backend** | FastAPI, APScheduler |
+| **AI / orchestration** | LangGraph, LangChain, OpenAI GPT-4o-mini |
+| **Data** | Supabase (Auth, Postgres, Storage) |
+| **Scraping** | Apify (LinkedIn Jobs actor) |
+| **PDF** | xhtml2pdf |
+| **Deploy** | Docker, nginx, Render |
+
+---
+
+## Architecture
+
+```
+Browser
+   ↓
+nginx (single public URL on Render)
+   ├── /              → Streamlit (app.py)
+   ├── /api/*         → FastAPI (backend.py)
+   └── /auth/confirm  → Email verification landing page
+
+FastAPI + APScheduler
+   ↓
+LangGraph Phase 1 (eval)    → Apify → OpenAI → Supabase (processed_jobs)
+LangGraph Phase 2 (optimize) → OpenAI → xhtml2pdf → Supabase Storage
+```
+
+### Phase 1 — Job evaluation
+
+Triggered by **Run Now** (manual) or a daily cron job (scheduled mode).
+
+1. Scrapes LinkedIn jobs posted in the last 24 hours.
+2. Scores each job against the user's CV (0–100) with a short summary.
+3. Persists results to `processed_jobs`.
+
+### Phase 2 — CV optimisation (on demand)
+
+Triggered when the user clicks **Generate Optimized CV** on a job card.
+
+1. Rewrites the CV in ATS-friendly HTML tailored to the job description.
+2. Renders HTML to PDF.
+3. Uploads to Supabase Storage and returns a signed download URL.
+
+---
+
+## Run locally
+
+### Prerequisites
+
+- Python 3.12+
+- Supabase project (see [Supabase setup](#supabase-setup) below)
+- OpenAI API key
+- Apify API token
+
+### 1. Clone and install
 
 ```bash
-# 1. Clone and enter the repo
-git clone <repo-url> && cd Job_Finder
+git clone https://github.com/YOUR_USERNAME/Job_Finder.git
+cd Job_Finder
 
-# 2. Create and activate a virtual environment
 python -m venv .venv
 # Windows
 .venv\Scripts\activate
 # macOS / Linux
 source .venv/bin/activate
 
-# 3. Install dependencies
 pip install -r requirements.txt
-
-# 4. Copy env template and fill in your secrets
-cp .env.example .env
-# edit .env with your real keys
-
-# 5. Run the Supabase SQL below in your project's SQL Editor
-
-# 6. Start FastAPI backend (terminal 1)
-uvicorn backend:fastapi_app --reload --port 8000
-
-# 7. Start Streamlit frontend (terminal 2)
-streamlit run app.py
 ```
 
----
+### 2. Environment variables
 
-## Environment Variables
+Create a `.env` file in the project root:
 
-| Variable | Description |
-|---|---|
-| `OPENAI_API_KEY` | OpenAI secret key |
-| `OPENAI_MODEL` | Model name (default `gpt-4o-mini`) |
-| `SUPABASE_URL` | Your Supabase project URL |
-| `SUPABASE_ANON_KEY` | Supabase anon/public key (used by Streamlit) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service-role key (used by FastAPI backend only) |
-| `APIFY_API_TOKEN` | Apify API token |
-| `APIFY_ACTOR_ID` | Apify actor ID (default `curious_coder/linkedin-jobs-scraper`) |
-| `FASTAPI_BASE_URL` | Internal URL Streamlit uses to reach FastAPI (default `http://localhost:8000`) |
-| `STREAMLIT_BASE_URL` | Streamlit app URL for the welcome page button (default `http://localhost:8501`) |
-| `AUTH_CONFIRM_URL` | Email verification redirect URL (default `http://localhost:8000/auth/confirm`) |
-| `SCHEDULER_TIMEZONE` | IANA timezone for APScheduler cron jobs (default `UTC`) |
+```env
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-4o-mini
 
----
+SUPABASE_URL=https://xxxx.supabase.co
+SUPABASE_ANON_KEY=eyJ...
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
 
-## Supabase Auth — Email Verification
+APIFY_API_TOKEN=apify_api_...
+APIFY_ACTOR_ID=curious_coder/linkedin-jobs-scraper
 
-After sign-up, Supabase sends a confirmation email. Configure these in your Supabase dashboard under **Authentication → URL Configuration**:
+# Local defaults (no change needed)
+FASTAPI_BASE_URL=http://localhost:8000
+STREAMLIT_BASE_URL=http://localhost:8501
+AUTH_CONFIRM_URL=http://localhost:8000/auth/confirm
+SCHEDULER_TIMEZONE=Asia/Dhaka
+```
+
+### 3. Supabase Auth (local)
+
+In **Supabase → Authentication → URL Configuration**:
 
 | Setting | Value |
 |---|---|
-| **Site URL** | `http://localhost:8000/auth/confirm` |
-| **Redirect URLs** | `http://localhost:8000/auth/confirm` |
+| Site URL | `http://localhost:8000/auth/confirm` |
+| Redirect URLs | `http://localhost:8000/auth/confirm` |
+| | `http://localhost:8501` |
 
-Also add `http://localhost:8501` to Redirect URLs if you use Streamlit directly.
+> **FastAPI must be running** when you click the email verification link.
 
-**Important:**
-1. **FastAPI must be running** when you click the email link (`uvicorn backend:fastapi_app --reload --port 8000`).
-2. Confirmation links **expire** (usually after 1 hour). If you see `otp_expired`, sign up again to get a fresh email.
-3. After verifying, you'll see a **Welcome to Job Finder** page with a button to open the app.
+### 4. Start the app (two terminals)
 
-Optional `.env` overrides:
+```bash
+# Terminal 1 — backend
+uvicorn backend:fastapi_app --reload --port 8000
 
-```env
-AUTH_CONFIRM_URL=http://localhost:8000/auth/confirm
-STREAMLIT_BASE_URL=http://localhost:8501
+# Terminal 2 — frontend
+streamlit run app.py
 ```
+
+Open [http://localhost:8501](http://localhost:8501).
 
 ---
 
-## Supabase Setup
+## Deploy to Render (one URL)
 
-Run the following SQL in your Supabase project's **SQL Editor** (Database → SQL Editor → New query).
+The repo ships with a **single-container** setup: nginx routes traffic to Streamlit and FastAPI on one public URL.
+
+### Steps
+
+1. Push this repo to GitHub.
+2. On [Render](https://render.com): **New → Web Service** → connect the repo.
+3. Set **Runtime** to **Docker**, **Plan** to **Free**, **Health Check Path** to `/health`.
+4. Add environment variables:
+
+| Variable | Required |
+|---|---|
+| `OPENAI_API_KEY` | Yes |
+| `SUPABASE_URL` | Yes |
+| `SUPABASE_ANON_KEY` | Yes |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes |
+| `APIFY_API_TOKEN` | Yes |
+| `OPENAI_MODEL` | No (default `gpt-4o-mini`) |
+| `SCHEDULER_TIMEZONE` | No (default `Asia/Dhaka`) |
+
+Public URLs are set automatically from Render's `RENDER_EXTERNAL_URL` — no manual URL config needed.
+
+5. After deploy, update **Supabase Auth** redirect URLs with your Render URL:
+
+| Setting | Value |
+|---|---|
+| Site URL | `https://your-app.onrender.com/auth/confirm` |
+| Redirect URLs | `https://your-app.onrender.com/auth/confirm` |
+| | `https://your-app.onrender.com` |
+
+6. Replace `https://your-app.onrender.com` at the top of this README with your real URL.
+
+### Docker (local single-container test)
+
+```bash
+docker build -t job-finder .
+docker run --rm -p 10000:10000 --env-file .env -e PUBLIC_BASE_URL=http://localhost:10000 job-finder
+```
+
+Open [http://localhost:10000](http://localhost:10000).
+
+---
+
+## Environment variables reference
+
+| Variable | Description | Default |
+|---|---|---|
+| `OPENAI_API_KEY` | OpenAI secret key | — |
+| `OPENAI_MODEL` | Model for both agents | `gpt-4o-mini` |
+| `SUPABASE_URL` | Supabase project URL | — |
+| `SUPABASE_ANON_KEY` | Anon key (Streamlit / client) | — |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role key (backend) | — |
+| `APIFY_API_TOKEN` | Apify API token | — |
+| `APIFY_ACTOR_ID` | LinkedIn scraper actor | `curious_coder/linkedin-jobs-scraper` |
+| `FASTAPI_BASE_URL` | URL Streamlit uses for API calls | `http://localhost:8000` |
+| `STREAMLIT_BASE_URL` | App URL on the welcome page | `http://localhost:8501` |
+| `AUTH_CONFIRM_URL` | Supabase email redirect URL | `http://localhost:8000/auth/confirm` |
+| `PUBLIC_BASE_URL` | Override for single-URL Docker deploy | — |
+| `SCHEDULER_TIMEZONE` | APScheduler timezone | `Asia/Dhaka` |
+
+On Render, `RENDER_EXTERNAL_URL` is injected automatically and configures the public URLs for you.
+
+---
+
+## Supabase setup
+
+Run the following in your Supabase **SQL Editor**.
 
 ### 1. Enable UUID extension
 
@@ -94,7 +234,7 @@ create extension if not exists "uuid-ossp";
 create table public.profiles (
     user_id     uuid primary key references auth.users(id) on delete cascade,
     target_roles text[]          not null default '{}',
-    location    text             not null default '',  -- preferred country
+    location    text             not null default '',
     job_type    text             not null default 'any'
                     check (job_type in ('any', 'remote', 'onsite')),
     salary_min  integer,
@@ -115,13 +255,6 @@ create policy "Users manage own profile"
     using  (auth.uid() = user_id)
     with check (auth.uid() = user_id);
 ```
-
-> **Existing projects:** if your `profiles` table was created before `job_type` was added, run:
-> ```sql
-> alter table public.profiles
->   add column if not exists job_type text not null default 'any'
->   check (job_type in ('any', 'remote', 'onsite'));
-> ```
 
 ### 3. `processed_jobs` table
 
@@ -156,8 +289,6 @@ create policy "Service role insert/update jobs"
     with check (true);
 ```
 
-> **Note**: The `service role insert/update` policy allows the FastAPI backend (which uses the service-role key) to write job records on behalf of any user. The `select` policy ensures users can only read their own jobs via the anon key in Streamlit.
-
 ### 4. `application_tracking` table
 
 ```sql
@@ -182,18 +313,16 @@ create policy "Users manage own applications"
 ### 5. Storage bucket `cvs`
 
 ```sql
--- Create the bucket (you can also do this in the Supabase dashboard: Storage → New bucket)
 insert into storage.buckets (id, name, public)
-values ('cvs', 'cvs', false);
+values ('cvs', 'cvs', false)
+on conflict (id) do nothing;
 
--- Allow authenticated users to upload/read their own files
 create policy "Users manage own CVs"
     on storage.objects
     for all
     using  (bucket_id = 'cvs' and auth.uid()::text = (storage.foldername(name))[2])
     with check (bucket_id = 'cvs' and auth.uid()::text = (storage.foldername(name))[2]);
 
--- Allow the service role unrestricted access (used by FastAPI to upload optimized CVs)
 create policy "Service role manages all CVs"
     on storage.objects
     for all
@@ -201,51 +330,39 @@ create policy "Service role manages all CVs"
     with check (bucket_id = 'cvs');
 ```
 
-Storage path convention:
-- `original/{user_id}/cv.pdf` — CV uploaded by user
-- `optimized/{user_id}/{job_id}.pdf` — ATS-optimised CV generated on demand
+Storage paths:
+- `original/{user_id}/cv.pdf` — user-uploaded CV
+- `optimized/{user_id}/{job_id}.pdf` — generated ATS CV
 
 ---
 
-## Architecture
+## Project structure
 
 ```
-Streamlit (sidebar.py + display.py)
-        ↕ httpx
-FastAPI (app.py) + APScheduler
-        ↕
-LangGraph Phase 1: eval_graph   → Apify → OpenAI → Supabase (processed_jobs)
-LangGraph Phase 2: optimize_graph → OpenAI → xhtml2pdf → Supabase Storage
+Job_Finder/
+├── app.py                  # Streamlit entry point
+├── backend.py              # FastAPI + APScheduler
+├── deploy/
+│   ├── nginx.conf.template # Reverse proxy routes
+│   └── start.sh            # Single-container startup
+├── src/
+│   ├── config/settings.py
+│   ├── core/               # LLMs, tools, state
+│   ├── ui/                 # Streamlit UI (sidebar, display, theme)
+│   └── workflow/           # LangGraph agents & graph
+├── Dockerfile
+├── render.yaml
+└── requirements.txt
 ```
-
-### Phase 1 — Job Evaluation (automatic)
-
-Triggered either by the APScheduler cron job (scheduled mode) or by the user clicking **Run Now** (manual mode).
-
-1. Scrapes LinkedIn jobs posted in the last 24 hours via the Apify actor.
-2. For each job, calls GPT-4o-mini to produce a compatibility score (0–100) and a short evaluation summary.
-3. Saves every job + score to `processed_jobs`.
-
-### Phase 2 — CV Optimisation (on-demand)
-
-Triggered when the user clicks **Generate Optimized CV** on a specific job card.
-
-1. Calls GPT-4o-mini to rewrite the user's CV in ATS-friendly HTML, tailored to the job description.
-2. Renders the HTML to PDF with xhtml2pdf.
-3. Uploads the PDF to Supabase Storage and returns a signed download URL.
 
 ---
 
-## Docker
+## License
 
-```bash
-docker build -t career-advisor .
-docker run -p 8000:8000 --env-file .env career-advisor
-```
+MIT — feel free to use this as a reference for your own projects.
 
-To run Streamlit instead of FastAPI:
+---
 
-```bash
-docker run -p 8501:8501 --env-file .env career-advisor \
-    streamlit run app.py --server.port 8501 --server.address 0.0.0.0
-```
+## Author
+
+**Your Name** — [GitHub](https://github.com/YOUR_USERNAME) · [LinkedIn](https://linkedin.com/in/YOUR_PROFILE)

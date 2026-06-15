@@ -1,7 +1,9 @@
 FROM python:3.12-slim
 
-# WeasyPrint requires Pango, Cairo and GDK-PixBuf for HTML-to-PDF rendering
+# System deps: nginx (reverse proxy) + libraries for xhtml2pdf PDF rendering
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    nginx \
+    curl \
     libpango-1.0-0 \
     libpangoft2-1.0-0 \
     libpangocairo-1.0-0 \
@@ -11,23 +13,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     shared-mime-info \
     fonts-liberation \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Install Python deps first for better layer caching
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# FastAPI port
-EXPOSE 8000
-# Streamlit port
-EXPOSE 8501
+RUN chmod +x /app/deploy/start.sh \
+    && rm -f /etc/nginx/sites-enabled/default
 
-# Default: run the FastAPI + APScheduler backend.
-# To run Streamlit instead, override CMD:
-#   docker run ... career-advisor streamlit run app.py --server.port 8501 --server.address 0.0.0.0
-CMD ["uvicorn", "app:fastapi_app", "--host", "0.0.0.0", "--port", "8000"]
+# Render injects PORT; nginx listens on it and routes to Streamlit + FastAPI
+EXPOSE 10000
+
+CMD ["/app/deploy/start.sh"]
