@@ -36,6 +36,6 @@ _opt_prompt = ChatPromptTemplate.from_messages(
 
 optimizer_chain = (
     _opt_prompt
-    | get_llm(temperature=0.2, max_tokens=8192)
+    | get_llm(temperature=0.0, max_tokens=8192)
     | StrOutputParser()
 )

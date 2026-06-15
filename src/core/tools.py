@@ -227,8 +227,8 @@ def scrape_linkedin_jobs(user_prefs: UserPrefs) -> list[ScrapedJob]:
 
 # ── HTML-to-PDF generator ─────────────────────────────────────────────────────
 
-def html_to_pdf(html: str) -> bytes:
-    """Convert an HTML string to PDF bytes using xhtml2pdf (cross-platform, no GTK)."""
+def _render_pdf(html: str) -> bytes:
+    """Render HTML to PDF bytes with xhtml2pdf (cross-platform, no GTK)."""
     from xhtml2pdf import pisa  # lazy import
 
     buffer = BytesIO()
@@ -239,6 +239,83 @@ def html_to_pdf(html: str) -> bytes:
     pdf_bytes = buffer.getvalue()
     if not pdf_bytes:
         raise RuntimeError("PDF generation produced empty output")
+
+    return pdf_bytes
+
+
+def _pdf_page_count(pdf_bytes: bytes) -> int:
+    """Return the number of pages in a PDF; defaults to 1 on any read error."""
+    try:
+        from pypdf import PdfReader
+
+        return len(PdfReader(BytesIO(pdf_bytes)).pages)
+    except Exception:
+        return 1
+
+
+def _compact_override_css(scale: float) -> str:
+    """Build an !important <style> block that shrinks the CV layout by *scale*.
+
+    Mirrors the selectors the optimizer prompt is instructed to emit so the
+    overrides reliably win the cascade and force the CV onto a single page.
+    """
+    body = round(10 * scale, 1)
+    h1 = round(16 * scale, 1)
+    h2 = round(11 * scale, 1)
+    contact = round(9 * scale, 1)
+    skill = round(9.5 * scale, 1)
+    line_height = 1.3 if scale >= 0.92 else (1.2 if scale >= 0.82 else 1.12)
+    margin_mm = 10 if scale >= 0.9 else (8 if scale >= 0.82 else 6)
+    h2_top = max(4, round(10 * scale))
+    return (
+        "<style>"
+        f"@page {{ size: A4; margin: {margin_mm}mm !important; }}"
+        f"body, .cv {{ font-size: {body}pt !important; line-height: {line_height} !important; }}"
+        f"h1 {{ font-size: {h1}pt !important; margin: 0 0 3px 0 !important; }}"
+        f"h2 {{ font-size: {h2}pt !important; margin: {h2_top}px 0 3px 0 !important;"
+        " padding-bottom: 1px !important; }"
+        f"p, li {{ font-size: {body}pt !important; }}"
+        f".contact {{ font-size: {contact}pt !important; }}"
+        f".skill-line {{ font-size: {skill}pt !important; margin: 1px 0 !important; }}"
+        "ul { margin: 2px 0 4px 0 !important; padding-left: 14px !important; }"
+        "li { margin-bottom: 1px !important; }"
+        ".role { margin-bottom: 4px !important; }"
+        ".role-title { margin: 0 0 1px 0 !important; }"
+        "</style>"
+    )
+
+
+def _inject_style(html: str, style: str) -> str:
+    """Insert *style* so it overrides the document's existing CSS (cascade order)."""
+    lowered = html.lower()
+    head_close = lowered.find("</head>")
+    if head_close != -1:
+        return html[:head_close] + style + html[head_close:]
+    body_open = lowered.find("<body")
+    if body_open != -1:
+        insert_at = html.find(">", body_open) + 1
+        return html[:insert_at] + style + html[insert_at:]
+    return style + html
+
+
+def html_to_pdf(html: str) -> bytes:
+    """Convert HTML to a single-page PDF.
+
+    xhtml2pdf does not scale content to fit, so a CV that is slightly too tall
+    overflows to a second page. We render once, and if the result is more than
+    one page we re-render with progressively more compact styling until it fits
+    (or we reach the smallest acceptable scale).
+    """
+    pdf_bytes = _render_pdf(html)
+    if _pdf_page_count(pdf_bytes) <= 1:
+        return pdf_bytes
+
+    for scale in (0.94, 0.88, 0.82, 0.76, 0.70):
+        compact_html = _inject_style(html, _compact_override_css(scale))
+        candidate = _render_pdf(compact_html)
+        if _pdf_page_count(candidate) <= 1:
+            return candidate
+        pdf_bytes = candidate  # keep the most compact attempt as fallback
 
     return pdf_bytes
 
