@@ -1,35 +1,62 @@
 # AI Career Automation Assistant
 
-A full-stack AI career assistant that scrapes LinkedIn jobs, scores each posting against your CV, and generates ATS-optimised PDFs on demand — built with Streamlit, FastAPI, LangGraph, and Supabase.
+> An autonomous, multi-tenant AI assistant that finds relevant LinkedIn jobs, scores each one against your CV, and generates a tailored, ATS-optimised resume on demand.
 
-**Live Demo:** [https://your-app.onrender.com](https://your-app.onrender.com)  
-*Hosted on Render free tier — first load after idle may take ~30 seconds. Sign-up required for full features.*
-
-<!-- Optional: uncomment when you have a pre-seeded demo account
-**Demo account**
-- Email: `demo@example.com`
-- Password: `YourDemoPassword`
--->
+Built with **Streamlit · FastAPI · LangGraph · OpenAI · Supabase**, packaged as a single Docker container behind nginx and deployed on Render.
 
 ---
 
-## What it does
+### Live Demo
 
-1. **Sign up & upload your CV** — secure auth via Supabase; PDF stored in private storage.
-2. **Set job preferences** — target roles, location, salary, remote/onsite, experience level.
-3. **Run the pipeline** — scrapes recent LinkedIn jobs (Apify), evaluates each with GPT-4o-mini, saves compatibility scores.
-4. **Review job cards** — sorted by score with summaries and apply links.
-5. **Generate optimised CV** — on-demand, job-tailored ATS PDF uploaded to Supabase Storage.
+**[cv-optimizer-agent-3.onrender.com](https://cv-optimizer-agent-3.onrender.com/)**
+
+Try it instantly with the shared demo account — no sign-up needed:
+
+| | |
+|---|---|
+| **Email** | `10xcubemiraj@gmail.com` |
+| **Password** | `Miraj123` |
+
+> ⚠️ **Live Demo Note:** This project is hosted on a free cloud container. If the site has been inactive, the first load may take approximately 50 seconds to wake up the server. Thank you for your patience!
+
+> The demo account is shared and public — please don't store anything sensitive.
 
 ---
 
-## Screenshots
+## Highlights
 
-<!-- Replace with your own images, e.g. docs/screenshots/dashboard.png -->
+- **Agentic pipeline** — two LangGraph workflows (job evaluation + CV optimisation) orchestrate scraping, LLM reasoning, and document generation.
+- **ATS-optimised resumes** — generates a job-tailored, single-page PDF that mirrors job keywords while preserving every factual detail from the original CV.
+- **Guaranteed one-page output** — a render-and-measure guard re-flows the PDF until it fits one page, regardless of content length or environment.
+- **Multi-tenant & secure** — Supabase Auth with row-level security; every user only sees their own data and CVs.
+- **Production packaging** — single container, nginx reverse proxy, one public URL for both UI and API, health checks, and a Render blueprint.
+- **Scheduling** — optional daily cron runs per user via APScheduler.
 
-| Dashboard | Job cards | Sidebar |
-|---|---|---|
-| *Add screenshot* | *Add screenshot* | *Add screenshot* |
+---
+
+## How it works
+
+```
+Browser
+   │
+   ▼
+nginx  (single public URL)
+   ├── /            → Streamlit UI        (app.py)
+   ├── /api/*       → FastAPI + APScheduler (backend.py)
+   └── /auth/*      → Email verification landing page
+                         │
+                         ▼
+            ┌───────────────────────────┐
+   Phase 1  │  Evaluate  (eval_graph)   │  Apify → OpenAI → Supabase
+            └───────────────────────────┘
+            ┌───────────────────────────┐
+   Phase 2  │  Optimise (optimize_graph)│  OpenAI → PDF → Supabase Storage
+            └───────────────────────────┘
+```
+
+**Phase 1 — Job evaluation** (manual *Run Now* or scheduled): scrapes recent LinkedIn postings, scores each against the user's CV (0–100) with a short rationale, and persists results.
+
+**Phase 2 — CV optimisation** (on demand): rewrites the CV as ATS-friendly HTML tailored to a specific job, renders it to a one-page PDF, and returns a signed download URL.
 
 ---
 
@@ -37,64 +64,46 @@ A full-stack AI career assistant that scrapes LinkedIn jobs, scores each posting
 
 | Layer | Technologies |
 |---|---|
-| **Frontend** | Streamlit |
-| **Backend** | FastAPI, APScheduler |
-| **AI / orchestration** | LangGraph, LangChain, OpenAI GPT-4o-mini |
-| **Data** | Supabase (Auth, Postgres, Storage) |
-| **Scraping** | Apify (LinkedIn Jobs actor) |
-| **PDF** | xhtml2pdf |
-| **Deploy** | Docker, nginx, Render |
+| Frontend | Streamlit |
+| Backend | FastAPI, APScheduler |
+| AI / orchestration | LangGraph, LangChain, OpenAI GPT-4o-mini |
+| Data & auth | Supabase (Auth, Postgres, Storage) |
+| Job data | Apify (LinkedIn Jobs actor) |
+| PDF generation | xhtml2pdf + reportlab |
+| Packaging & deploy | Docker, nginx, Render |
 
 ---
 
-## Architecture
+## Screenshots
 
-```
-Browser
-   ↓
-nginx (single public URL on Render)
-   ├── /              → Streamlit (app.py)
-   ├── /api/*         → FastAPI (backend.py)
-   └── /auth/confirm  → Email verification landing page
+**Matched-jobs dashboard** — scraped jobs ranked by compatibility, with preferences and run controls in the sidebar.
 
-FastAPI + APScheduler
-   ↓
-LangGraph Phase 1 (eval)    → Apify → OpenAI → Supabase (processed_jobs)
-LangGraph Phase 2 (optimize) → OpenAI → xhtml2pdf → Supabase Storage
-```
+![Matched-jobs dashboard](docs/screenshots/dashboard.png)
 
-### Phase 1 — Job evaluation
+**AI match insight & actions** — per-job rationale, full description, and one-click actions (generate CV, apply, mark applied).
 
-Triggered by **Run Now** (manual) or a daily cron job (scheduled mode).
+![AI match insight and actions](docs/screenshots/job-insight.png)
 
-1. Scrapes LinkedIn jobs posted in the last 24 hours.
-2. Scores each job against the user's CV (0–100) with a short summary.
-3. Persists results to `processed_jobs`.
+**Tailored CV generated** — an ATS-optimised, one-page PDF ready to download for the selected role.
 
-### Phase 2 — CV optimisation (on demand)
-
-Triggered when the user clicks **Generate Optimized CV** on a job card.
-
-1. Rewrites the CV in ATS-friendly HTML tailored to the job description.
-2. Renders HTML to PDF.
-3. Uploads to Supabase Storage and returns a signed download URL.
+![Tailored CV generated](docs/screenshots/tailored-cv.png)
 
 ---
 
-## Run locally
+<details>
+<summary><strong>Run locally</strong></summary>
 
 ### Prerequisites
 
 - Python 3.12+
-- Supabase project (see [Supabase setup](#supabase-setup) below)
-- OpenAI API key
-- Apify API token
+- A Supabase project (run the SQL in the section below)
+- OpenAI API key and Apify API token
 
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/Job_Finder.git
-cd Job_Finder
+git clone https://github.com/mdmiraj7308-hue/cv-optimizer-agent.git
+cd cv-optimizer-agent
 
 python -m venv .venv
 # Windows
@@ -105,7 +114,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Environment variables
+### 2. Configure environment
 
 Create a `.env` file in the project root:
 
@@ -127,17 +136,16 @@ AUTH_CONFIRM_URL=http://localhost:8000/auth/confirm
 SCHEDULER_TIMEZONE=Asia/Dhaka
 ```
 
-### 3. Supabase Auth (local)
+### 3. Configure Supabase Auth
 
 In **Supabase → Authentication → URL Configuration**:
 
 | Setting | Value |
 |---|---|
 | Site URL | `http://localhost:8000/auth/confirm` |
-| Redirect URLs | `http://localhost:8000/auth/confirm` |
-| | `http://localhost:8501` |
+| Redirect URLs | `http://localhost:8000/auth/confirm` and `http://localhost:8501` |
 
-> **FastAPI must be running** when you click the email verification link.
+> FastAPI must be running when you click the email verification link.
 
 ### 4. Start the app (two terminals)
 
@@ -151,17 +159,16 @@ streamlit run app.py
 
 Open [http://localhost:8501](http://localhost:8501).
 
----
+</details>
 
-## Deploy to Render (one URL)
+<details>
+<summary><strong>Deploy to Render (single URL)</strong></summary>
 
-The repo ships with a **single-container** setup: nginx routes traffic to Streamlit and FastAPI on one public URL.
+The repo ships a single-container setup: nginx routes traffic to both Streamlit and FastAPI behind one public URL.
 
-### Steps
-
-1. Push this repo to GitHub.
+1. Push the repo to GitHub.
 2. On [Render](https://render.com): **New → Web Service** → connect the repo.
-3. Set **Runtime** to **Docker**, **Plan** to **Free**, **Health Check Path** to `/health`.
+3. Set **Runtime** = Docker, **Plan** = Free, **Health Check Path** = `/health`.
 4. Add environment variables:
 
 | Variable | Required |
@@ -174,30 +181,29 @@ The repo ships with a **single-container** setup: nginx routes traffic to Stream
 | `OPENAI_MODEL` | No (default `gpt-4o-mini`) |
 | `SCHEDULER_TIMEZONE` | No (default `Asia/Dhaka`) |
 
-Public URLs are set automatically from Render's `RENDER_EXTERNAL_URL` — no manual URL config needed.
+Public URLs are derived automatically from Render's `RENDER_EXTERNAL_URL` — no manual URL config needed.
 
-5. After deploy, update **Supabase Auth** redirect URLs with your Render URL:
+5. After deploy, add your Render URL to **Supabase → Authentication → URL Configuration**:
 
 | Setting | Value |
 |---|---|
-| Site URL | `https://your-app.onrender.com/auth/confirm` |
-| Redirect URLs | `https://your-app.onrender.com/auth/confirm` |
-| | `https://your-app.onrender.com` |
+| Site URL | `https://<your-app>.onrender.com/auth/confirm` |
+| Redirect URLs | `https://<your-app>.onrender.com/auth/confirm` and `https://<your-app>.onrender.com` |
 
-6. Replace `https://your-app.onrender.com` at the top of this README with your real URL.
-
-### Docker (local single-container test)
+### Local single-container test
 
 ```bash
-docker build -t job-finder .
-docker run --rm -p 10000:10000 --env-file .env -e PUBLIC_BASE_URL=http://localhost:10000 job-finder
+docker build -t cv-optimizer-agent .
+docker run --rm -p 10000:10000 --env-file .env \
+  -e PUBLIC_BASE_URL=http://localhost:10000 cv-optimizer-agent
 ```
 
 Open [http://localhost:10000](http://localhost:10000).
 
----
+</details>
 
-## Environment variables reference
+<details>
+<summary><strong>Environment variables reference</strong></summary>
 
 | Variable | Description | Default |
 |---|---|---|
@@ -214,23 +220,20 @@ Open [http://localhost:10000](http://localhost:10000).
 | `PUBLIC_BASE_URL` | Override for single-URL Docker deploy | — |
 | `SCHEDULER_TIMEZONE` | APScheduler timezone | `Asia/Dhaka` |
 
-On Render, `RENDER_EXTERNAL_URL` is injected automatically and configures the public URLs for you.
+On Render, `RENDER_EXTERNAL_URL` is injected automatically and configures the public URLs.
 
----
+</details>
 
-## Supabase setup
+<details>
+<summary><strong>Supabase setup (SQL)</strong></summary>
 
 Run the following in your Supabase **SQL Editor**.
 
-### 1. Enable UUID extension
-
 ```sql
+-- 1. UUID extension
 create extension if not exists "uuid-ossp";
-```
 
-### 2. `profiles` table
-
-```sql
+-- 2. profiles
 create table public.profiles (
     user_id     uuid primary key references auth.users(id) on delete cascade,
     target_roles text[]          not null default '{}',
@@ -246,19 +249,12 @@ create table public.profiles (
     original_cv_url text,
     created_at  timestamptz      not null default now()
 );
-
 alter table public.profiles enable row level security;
-
 create policy "Users manage own profile"
-    on public.profiles
-    for all
-    using  (auth.uid() = user_id)
-    with check (auth.uid() = user_id);
-```
+    on public.profiles for all
+    using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
-### 3. `processed_jobs` table
-
-```sql
+-- 3. processed_jobs
 create table public.processed_jobs (
     id                      uuid primary key default uuid_generate_v4(),
     user_id                 uuid not null references public.profiles(user_id) on delete cascade,
@@ -274,24 +270,13 @@ create table public.processed_jobs (
     optimized_cv_url        text,
     processed_at            timestamptz not null default now()
 );
-
 alter table public.processed_jobs enable row level security;
-
 create policy "Users read own jobs"
-    on public.processed_jobs
-    for select
-    using (auth.uid() = user_id);
-
+    on public.processed_jobs for select using (auth.uid() = user_id);
 create policy "Service role insert/update jobs"
-    on public.processed_jobs
-    for all
-    using (true)
-    with check (true);
-```
+    on public.processed_jobs for all using (true) with check (true);
 
-### 4. `application_tracking` table
-
-```sql
+-- 4. application_tracking
 create table public.application_tracking (
     id                  uuid primary key default uuid_generate_v4(),
     user_id             uuid not null references public.profiles(user_id) on delete cascade,
@@ -300,56 +285,46 @@ create table public.application_tracking (
     cv_downloaded       boolean not null default false,
     unique (user_id, processed_job_id)
 );
-
 alter table public.application_tracking enable row level security;
-
 create policy "Users manage own applications"
-    on public.application_tracking
-    for all
-    using  (auth.uid() = user_id)
-    with check (auth.uid() = user_id);
-```
+    on public.application_tracking for all
+    using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
-### 5. Storage bucket `cvs`
-
-```sql
+-- 5. Storage bucket for CVs
 insert into storage.buckets (id, name, public)
-values ('cvs', 'cvs', false)
-on conflict (id) do nothing;
-
+values ('cvs', 'cvs', false) on conflict (id) do nothing;
 create policy "Users manage own CVs"
-    on storage.objects
-    for all
+    on storage.objects for all
     using  (bucket_id = 'cvs' and auth.uid()::text = (storage.foldername(name))[2])
     with check (bucket_id = 'cvs' and auth.uid()::text = (storage.foldername(name))[2]);
-
 create policy "Service role manages all CVs"
-    on storage.objects
-    for all
-    using (bucket_id = 'cvs')
-    with check (bucket_id = 'cvs');
+    on storage.objects for all
+    using (bucket_id = 'cvs') with check (bucket_id = 'cvs');
 ```
 
 Storage paths:
 - `original/{user_id}/cv.pdf` — user-uploaded CV
 - `optimized/{user_id}/{job_id}.pdf` — generated ATS CV
 
+</details>
+
 ---
 
 ## Project structure
 
 ```
-Job_Finder/
+cv-optimizer-agent/
 ├── app.py                  # Streamlit entry point
 ├── backend.py              # FastAPI + APScheduler
 ├── deploy/
 │   ├── nginx.conf.template # Reverse proxy routes
 │   └── start.sh            # Single-container startup
 ├── src/
-│   ├── config/settings.py
-│   ├── core/               # LLMs, tools, state
+│   ├── config/             # Pydantic settings
+│   ├── core/               # LLMs, tools, state, PDF
+│   ├── prompts/            # System prompts
 │   ├── ui/                 # Streamlit UI (sidebar, display, theme)
-│   └── workflow/           # LangGraph agents & graph
+│   └── workflow/           # LangGraph agents, nodes, graphs
 ├── Dockerfile
 ├── render.yaml
 └── requirements.txt
@@ -359,10 +334,9 @@ Job_Finder/
 
 ## License
 
-MIT — feel free to use this as a reference for your own projects.
-
----
+Released under the MIT License.
 
 ## Author
 
-**Your Name** — [GitHub](https://github.com/YOUR_USERNAME) · [LinkedIn](https://linkedin.com/in/YOUR_PROFILE)
+**Md Miraj Islam**
+[GitHub](https://github.com/mdmiraj7308-hue) · [LinkedIn](www.linkedin.com/in/mdmirajislam)
