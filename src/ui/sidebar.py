@@ -72,6 +72,12 @@ def _get_supabase():
     return client
 
 
+def _auth_headers() -> dict:
+    """Bearer header so the FastAPI backend can authenticate the current user."""
+    token = st.session_state.get("access_token", "")
+    return {"Authorization": f"Bearer {token}"} if token else {}
+
+
 def _load_profile(user_id: str):
     try:
         sb = _get_supabase()
@@ -461,7 +467,8 @@ def _render_run_mode(user_id: str, profile: dict):
                 with st.spinner("Scanning jobs…"):
                     try:
                         resp = httpx.post(
-                            f"{settings.fastapi_base_url}/api/run/{user_id}", timeout=360,
+                            f"{settings.fastapi_base_url}/api/run/{user_id}",
+                            headers=_auth_headers(), timeout=360,
                         )
                         resp.raise_for_status()
                         data = resp.json()
@@ -481,7 +488,7 @@ def _render_run_mode(user_id: str, profile: dict):
                 try:
                     httpx.post(
                         f"{settings.fastapi_base_url}/api/schedule/{user_id}",
-                        json={"run_hour": run_hour}, timeout=10,
+                        json={"run_hour": run_hour}, headers=_auth_headers(), timeout=10,
                     )
                 except Exception:
                     pass
@@ -495,7 +502,8 @@ def _render_run_mode(user_id: str, profile: dict):
                     }
                     try:
                         httpx.delete(
-                            f"{settings.fastapi_base_url}/api/schedule/{user_id}", timeout=5,
+                            f"{settings.fastapi_base_url}/api/schedule/{user_id}",
+                            headers=_auth_headers(), timeout=5,
                         )
                     except Exception:
                         pass
@@ -518,7 +526,8 @@ def _render_danger_zone(user_id: str):
                 try:
                     try:
                         httpx.delete(
-                            f"{settings.fastapi_base_url}/api/schedule/{user_id}", timeout=5,
+                            f"{settings.fastapi_base_url}/api/schedule/{user_id}",
+                            headers=_auth_headers(), timeout=5,
                         )
                     except Exception:
                         pass

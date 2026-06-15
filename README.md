@@ -34,6 +34,23 @@ Try it instantly with the shared demo account — no sign-up needed:
 
 ---
 
+## Security & Operations
+
+Security and reliability were treated as first-class concerns, not afterthoughts.
+
+| Area | Approach |
+|---|---|
+| **API authentication** | Every `/api/*` endpoint requires a valid Supabase JWT (`Authorization: Bearer`). Requests are rejected with `401` if the token is missing/expired and `403` if a user tries to access another user's data. |
+| **Database isolation** | Postgres **Row-Level Security** — each user can read only their own profile, jobs, and CVs. |
+| **Rate limiting** | Expensive AI endpoints are throttled per client (`slowapi`) to protect the shared demo and control cost. |
+| **CORS** | Locked down to the app's own origin instead of a wildcard. |
+| **Secrets** | All keys are injected via environment variables; nothing sensitive is committed to git. |
+| **Least privilege** | The Supabase service-role key lives only on the backend; the browser/client uses the anon key. |
+| **Observability** | **LangSmith** tracing for every LLM/agent step, per-call **token-usage logging** for cost tracking, and a `/health` endpoint for uptime monitoring. |
+| **CI** | GitHub Actions lints, byte-compiles, and **builds the Docker image** on every PR to catch issues before deploy. |
+
+---
+
 ## How it works
 
 ```
@@ -219,6 +236,9 @@ Open [http://localhost:10000](http://localhost:10000).
 | `AUTH_CONFIRM_URL` | Supabase email redirect URL | `http://localhost:8000/auth/confirm` |
 | `PUBLIC_BASE_URL` | Override for single-URL Docker deploy | — |
 | `SCHEDULER_TIMEZONE` | APScheduler timezone | `Asia/Dhaka` |
+| `LANGCHAIN_TRACING_V2` | Enable LangSmith tracing (`true`/`false`) | `false` |
+| `LANGCHAIN_API_KEY` | LangSmith API key (optional) | — |
+| `LANGCHAIN_PROJECT` | LangSmith project name | `cv-optimizer-agent` |
 
 On Render, `RENDER_EXTERNAL_URL` is injected automatically and configures the public URLs.
 

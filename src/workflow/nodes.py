@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import logging
 
+from src.core.llms import TokenUsageLogger
 from src.core.state import EvalState, OptimizeState
 from src.core.tools import (
     scrape_linkedin_jobs,
@@ -66,7 +67,8 @@ def evaluator_node(state: EvalState) -> EvalState:
                     "experience_level": user_prefs.get("experience_level", "any"),
                     "date_posted": user_prefs.get("date_posted", "any_time"),
                     "salary_range": salary_range,
-                }
+                },
+                config={"callbacks": [TokenUsageLogger("evaluator")]},
             )
 
             # The LLM should return plain JSON; strip accidental fences
@@ -112,7 +114,8 @@ def optimizer_node(state: OptimizeState) -> OptimizeState:
             "job_title": state.get("job_title", ""),
             "company": state.get("company", ""),
             "job_description_md": state["job_description"],
-        }
+        },
+        config={"callbacks": [TokenUsageLogger("optimizer")]},
     )
 
     # Strip accidental markdown fences the model may add

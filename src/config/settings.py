@@ -55,6 +55,15 @@ class Settings(BaseSettings):
         "Asia/Dhaka", description="IANA timezone string for APScheduler cron jobs"
     )
 
+    # ── Observability (LangSmith) — optional ──────────────────────────────────
+    langchain_tracing_v2: bool = Field(
+        False, description="Enable LangSmith tracing for all LLM/agent steps"
+    )
+    langchain_api_key: str | None = Field(None, description="LangSmith API key")
+    langchain_project: str = Field(
+        "cv-optimizer-agent", description="LangSmith project name for traces"
+    )
+
     @model_validator(mode="after")
     def apply_single_public_url(self) -> "Settings":
         """Apply PUBLIC_BASE_URL or Render's RENDER_EXTERNAL_URL for one-URL deploys."""
@@ -65,6 +74,20 @@ class Settings(BaseSettings):
         self.fastapi_base_url = "http://127.0.0.1:8000"
         self.streamlit_base_url = base
         self.auth_confirm_url = f"{base}/auth/confirm"
+        return self
+
+    @model_validator(mode="after")
+    def export_langsmith_env(self) -> "Settings":
+        """Bridge LangSmith settings into env vars so LangChain auto-tracing picks them up.
+
+        Lets tracing work whether keys come from Render env vars or a local .env.
+        """
+        if self.langchain_api_key:
+            os.environ.setdefault("LANGCHAIN_API_KEY", self.langchain_api_key)
+            os.environ.setdefault(
+                "LANGCHAIN_TRACING_V2", "true" if self.langchain_tracing_v2 else "false"
+            )
+            os.environ.setdefault("LANGCHAIN_PROJECT", self.langchain_project)
         return self
 
 

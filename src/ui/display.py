@@ -53,6 +53,12 @@ def _get_supabase():
     return client
 
 
+def _auth_headers() -> dict:
+    """Bearer header so the FastAPI backend can authenticate the current user."""
+    token = st.session_state.get("access_token", "")
+    return {"Authorization": f"Bearer {token}"} if token else {}
+
+
 _ABOUT_THE_JOB_RE = re.compile(r"about\s+the\s+job\s*:?\s*", re.IGNORECASE)
 
 
@@ -225,7 +231,7 @@ def _render_job_card(job: dict, user_id: str, applied_ids: set[str]):
                         try:
                             resp = httpx.post(
                                 f"{settings.fastapi_base_url}/api/optimize/{job_id}",
-                                timeout=300,
+                                headers=_auth_headers(), timeout=300,
                             )
                             resp.raise_for_status()
                             data = resp.json()
