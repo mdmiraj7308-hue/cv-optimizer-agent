@@ -81,7 +81,7 @@ CONTENT PRESERVATION (critical — violating these is a failure):
 ONE-PAGE LAYOUT:
 - Target exactly ONE A4 page, filled top to bottom like a professional resume (not a sparse half-page)
 - Use compact but readable typography: body 10pt, h1 16pt, h2 11pt, line-height 1.3
-- Page margins: @page {{ margin: 10mm; }}
+- Page margins: comfortable and balanced on all four sides so no text is clipped — @page {{ margin: 16mm 15mm; }} (top/bottom 16mm, left/right 15mm)
 - Up to 5 bullet points per role if the original has that many; keep each bullet concise but complete (max ~28 words)
 - If the original CV fits one page, your output must also be one full page with similar information density
 - Only trim duplicate or redundant lines if content would clearly overflow to page 2 — never cut whole sections
@@ -92,7 +92,7 @@ HTML STRUCTURE REQUIREMENTS:
 - Use <ul><li> for bullet lists; use <p class="skill-line"> for labelled skill rows (e.g. <strong>AI Tools:</strong> …)
 - Wrap each job in <div class="role"> with <p class="role-title"> for title | company | dates
 - Include an inline <style> block inside a <head> tag:
-  @page {{ size: A4; margin: 10mm; }}
+  @page {{ size: A4; margin: 16mm 15mm 16mm 15mm; }}
   body, .cv {{ font-family: Arial, Helvetica, sans-serif; font-size: 10pt; line-height: 1.3; color: #111; margin: 0; padding: 0; }}
   h1 {{ font-size: 16pt; margin: 0 0 4px 0; color: #1a5490; }}
   h2 {{ font-size: 11pt; border-bottom: 1px solid #1a5490; margin: 10px 0 4px 0; padding-bottom: 2px; color: #1a5490; }}

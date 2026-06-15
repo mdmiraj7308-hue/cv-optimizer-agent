@@ -265,11 +265,14 @@ def _compact_override_css(scale: float) -> str:
     contact = round(9 * scale, 1)
     skill = round(9.5 * scale, 1)
     line_height = 1.3 if scale >= 0.92 else (1.2 if scale >= 0.82 else 1.12)
-    margin_mm = 10 if scale >= 0.9 else (8 if scale >= 0.82 else 6)
+    # Keep generous, balanced margins on all four sides; rely on font scaling
+    # (not margin shrinking) to fit one page, so text is never clipped at edges.
+    margin_v = 15 if scale >= 0.88 else 13
+    margin_h = 14 if scale >= 0.88 else 12
     h2_top = max(4, round(10 * scale))
     return (
         "<style>"
-        f"@page {{ size: A4; margin: {margin_mm}mm !important; }}"
+        f"@page {{ size: A4; margin: {margin_v}mm {margin_h}mm !important; }}"
         f"body, .cv {{ font-size: {body}pt !important; line-height: {line_height} !important; }}"
         f"h1 {{ font-size: {h1}pt !important; margin: 0 0 3px 0 !important; }}"
         f"h2 {{ font-size: {h2}pt !important; margin: {h2_top}px 0 3px 0 !important;"
