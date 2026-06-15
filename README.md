@@ -339,4 +339,4 @@ Released under the MIT License.
 ## Author
 
 **Md Miraj Islam**
-[GitHub](https://github.com/mdmiraj7308-hue) · [LinkedIn](www.linkedin.com/in/mdmirajislam)
+[GitHub](https://github.com/mdmiraj7308-hue) · [LinkedIn](https://www.linkedin.com/in/mdmirajislam/)
