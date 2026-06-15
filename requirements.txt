@@ -16,6 +16,9 @@ langchain-core>=0.2.0
 
 # ─── PDF ─────────────────────────────────────────────────────────────────────
 xhtml2pdf[renderpm]>=0.2.16
+# svglib<1.6 avoids the rlpycairo -> pycairo chain (pycairo has no Linux wheel
+# and needs a C compiler/cairo headers absent from python:slim). Keeps install wheel-only.
+svglib<1.6
 pypdf>=4.2.0
 
 # ─── Supabase ────────────────────────────────────────────────────────────────
