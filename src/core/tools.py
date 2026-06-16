@@ -253,26 +253,37 @@ def _pdf_page_count(pdf_bytes: bytes) -> int:
         return 1
 
 
-def _compact_override_css(scale: float) -> str:
-    """Build an !important <style> block that shrinks the CV layout by *scale*.
+def _layout_override_css(scale: float) -> str:
+    """Build an !important <style> block that scales CV typography by *scale*.
 
     Mirrors the selectors the optimizer prompt is instructed to emit so the
-    overrides reliably win the cascade and force the CV onto a single page.
+    overrides reliably win the cascade for both compacting and densifying.
     """
     body = round(10 * scale, 1)
     h1 = round(16 * scale, 1)
     h2 = round(11 * scale, 1)
     contact = round(9 * scale, 1)
     skill = round(9.5 * scale, 1)
-    line_height = 1.3 if scale >= 0.92 else (1.2 if scale >= 0.82 else 1.12)
-    # Keep generous, balanced margins on all four sides; rely on font scaling
-    # (not margin shrinking) to fit one page, so text is never clipped at edges.
-    margin_v = 15 if scale >= 0.88 else 13
-    margin_h = 14 if scale >= 0.88 else 12
+    if scale >= 1.08:
+        line_height = 1.34
+    elif scale >= 1.00:
+        line_height = 1.32
+    elif scale >= 0.92:
+        line_height = 1.30
+    elif scale >= 0.82:
+        line_height = 1.20
+    else:
+        line_height = 1.12
+    # Keep fixed, balanced margins on all four sides.
+    # We only reduce typography density, never page margins.
+    margin_v = 16
+    margin_h = 15
     h2_top = max(4, round(10 * scale))
     return (
         "<style>"
         f"@page {{ size: A4; margin: {margin_v}mm {margin_h}mm !important; }}"
+        "html, body, .cv { letter-spacing: normal !important; word-spacing: normal !important; "
+        "font-kerning: normal !important; }"
         f"body, .cv {{ font-size: {body}pt !important; line-height: {line_height} !important; }}"
         f"h1 {{ font-size: {h1}pt !important; margin: 0 0 3px 0 !important; }}"
         f"h2 {{ font-size: {h2}pt !important; margin: {h2_top}px 0 3px 0 !important;"
@@ -286,6 +297,40 @@ def _compact_override_css(scale: float) -> str:
         ".role-title { margin: 0 0 1px 0 !important; }"
         "</style>"
     )
+
+
+def _normalize_text_tracking(html: str) -> str:
+    """Normalize accidental letter-by-letter tracking in model-generated text nodes."""
+    parts = re.split(r"(<[^>]+>)", html)
+    out: list[str] = []
+
+    for part in parts:
+        if part.startswith("<") and part.endswith(">"):
+            # Remove explicit spacing styles that can widen glyph spacing in PDF engines.
+            part = re.sub(
+                r"(?i)\bletter-spacing\s*:\s*[^;\"']+;?",
+                "letter-spacing: normal;",
+                part,
+            )
+            part = re.sub(
+                r"(?i)\bword-spacing\s*:\s*[^;\"']+;?",
+                "word-spacing: normal;",
+                part,
+            )
+            out.append(part)
+            continue
+
+        # Collapse artificial spacing patterns like:
+        # "M D M I R A J I S L A M" -> "MDMIRAJISLAM"
+        # "m d m i r a j 7 3 0 8"   -> "mdmiraj7308"
+        compact = re.sub(
+            r"\b(?:[A-Za-z0-9]\s+){3,}[A-Za-z0-9]\b",
+            lambda m: re.sub(r"\s+", "", m.group(0)),
+            part,
+        )
+        out.append(compact)
+
+    return "".join(out)
 
 
 def _inject_style(html: str, style: str) -> str:
@@ -309,12 +354,33 @@ def html_to_pdf(html: str) -> bytes:
     one page we re-render with progressively more compact styling until it fits
     (or we reach the smallest acceptable scale).
     """
+    html = _normalize_text_tracking(html)
+    # Always inject a typographic guard layer for consistent kerning/spacing.
+    html = _inject_style(
+        html,
+        "<style>"
+        "@page { size: A4; margin: 16mm 15mm 16mm 15mm !important; }"
+        "html, body, .cv { letter-spacing: normal !important; word-spacing: normal !important; "
+        "font-kerning: normal !important; }"
+        "</style>",
+    )
+
     pdf_bytes = _render_pdf(html)
     if _pdf_page_count(pdf_bytes) <= 1:
-        return pdf_bytes
+        # If content is short, gently enlarge typography until just before overflow
+        # so the document better fills the full printable page.
+        best = pdf_bytes
+        for scale in (1.03, 1.06, 1.10, 1.14):
+            expanded_html = _inject_style(html, _layout_override_css(scale))
+            candidate = _render_pdf(expanded_html)
+            if _pdf_page_count(candidate) <= 1:
+                best = candidate
+            else:
+                break
+        return best
 
     for scale in (0.94, 0.88, 0.82, 0.76, 0.70):
-        compact_html = _inject_style(html, _compact_override_css(scale))
+        compact_html = _inject_style(html, _layout_override_css(scale))
         candidate = _render_pdf(compact_html)
         if _pdf_page_count(candidate) <= 1:
             return candidate

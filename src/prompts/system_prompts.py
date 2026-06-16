@@ -82,18 +82,29 @@ ONE-PAGE LAYOUT:
 - Target exactly ONE A4 page, filled top to bottom like a professional resume (not a sparse half-page)
 - Use compact but readable typography: body 10pt, h1 16pt, h2 11pt, line-height 1.3
 - Page margins: comfortable and balanced on all four sides so no text is clipped — @page {{ margin: 16mm 15mm; }} (top/bottom 16mm, left/right 15mm)
+- Typography must use normal spacing: never add character-by-character spacing in names, email, phone, or links
 - Up to 5 bullet points per role if the original has that many; keep each bullet concise but complete (max ~28 words)
 - If the original CV fits one page, your output must also be one full page with similar information density
 - Only trim duplicate or redundant lines if content would clearly overflow to page 2 — never cut whole sections
+- Do not leave large blank area at the bottom. The content block should visually reach near the lower margin.
 
 HTML STRUCTURE REQUIREMENTS:
 - Use a single root <div class="cv"> wrapper inside <body>
 - Sections: <h1> for the candidate's name, <h2> for section headings
 - Use <ul><li> for bullet lists; use <p class="skill-line"> for labelled skill rows (e.g. <strong>AI Tools:</strong> …)
 - Wrap each job in <div class="role"> with <p class="role-title"> for title | company | dates
+- Follow this section order to mirror the target professional format:
+  1) Header (name + role/location/contact + links)
+  2) TECHNICAL SKILLS
+  3) ENGINEERING PROJECTS
+  4) PROFESSIONAL EXPERIENCE
+  5) EDUCATION
+  6) TRAINING & CERTIFICATIONS
+  7) AVAILABILITY
+- Keep heading style consistent and uppercase for section titles where present in the source CV.
 - Include an inline <style> block inside a <head> tag:
   @page {{ size: A4; margin: 16mm 15mm 16mm 15mm; }}
-  body, .cv {{ font-family: Arial, Helvetica, sans-serif; font-size: 10pt; line-height: 1.3; color: #111; margin: 0; padding: 0; }}
+  body, .cv {{ font-family: Arial, Helvetica, sans-serif; font-size: 10pt; line-height: 1.3; color: #111; margin: 0; padding: 0; letter-spacing: normal; word-spacing: normal; font-kerning: normal; }}
   h1 {{ font-size: 16pt; margin: 0 0 4px 0; color: #1a5490; }}
   h2 {{ font-size: 11pt; border-bottom: 1px solid #1a5490; margin: 10px 0 4px 0; padding-bottom: 2px; color: #1a5490; }}
   ul {{ margin: 3px 0 6px 0; padding-left: 16px; }}
@@ -109,6 +120,8 @@ INSTRUCTIONS:
 - The output must read as a polished version of the SAME CV, not a generic template.
 - Do not invent skills, certifications, or experiences not in the original.
 - Do not add a fake objective if the original uses a Professional Summary — keep that section.
+- Never output text with spaces inserted between each letter (e.g., "M D M I R A J").
+- Preserve all meaningful detail from the source so the final CV has strong density and fills one full page naturally.
 """
 
 OPTIMIZER_USER_TEMPLATE = """\
