@@ -43,6 +43,7 @@ class OptimizeState(TypedDict):
     """State passed through the Phase 2 on-demand optimization graph."""
 
     cv_text: str
+    cv_links: list[dict[str, str]]
     job_description: str
     job_id: str
     user_id: str

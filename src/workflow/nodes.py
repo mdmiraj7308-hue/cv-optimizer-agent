@@ -104,6 +104,24 @@ def evaluator_node(state: EvalState) -> EvalState:
 # ── Phase 2 nodes ─────────────────────────────────────────────────────────────
 
 
+def _format_cv_links(links: list[dict] | None) -> str:
+    """Render extracted CV hyperlinks as a compact list for the optimizer prompt."""
+    if not links:
+        return "(No embedded links found in the original CV.)"
+    lines = []
+    for link in links:
+        anchor = (link.get("anchor") or "").strip() or "(no anchor text)"
+        context = (link.get("context") or "").strip()
+        url = (link.get("url") or "").strip()
+        if not url:
+            continue
+        entry = f'- anchor: "{anchor}" | url: {url}'
+        if context:
+            entry += f' | context: "{context}"'
+        lines.append(entry)
+    return "\n".join(lines) if lines else "(No embedded links found in the original CV.)"
+
+
 def optimizer_node(state: OptimizeState) -> OptimizeState:
     """Call the optimizer chain to rewrite the CV as ATS-optimised HTML."""
     logger.info("optimizer_node: generating optimized CV for job_id=%s", state["job_id"])
@@ -111,6 +129,7 @@ def optimizer_node(state: OptimizeState) -> OptimizeState:
     html = optimizer_chain.invoke(
         {
             "cv_text": state["cv_text"] or "(No CV provided)",
+            "cv_links": _format_cv_links(state.get("cv_links")),
             "job_title": state.get("job_title", ""),
             "company": state.get("company", ""),
             "job_description_md": state["job_description"],

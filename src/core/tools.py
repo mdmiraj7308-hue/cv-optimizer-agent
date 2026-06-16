@@ -319,6 +319,8 @@ def _base_layout_style(margin_mm: int = PAGE_MARGIN_MM) -> str:
         "table, img { max-width: 100%; }"
         # Section separation line — matches the source CV: thin, full-width rule.
         "h2 { border-bottom: 1px solid #1a5490; padding-bottom: 2px; }"
+        # Hyperlinks carried over from the original CV.
+        "a { color: #1a5490; text-decoration: underline; }"
         "</style>"
     )
 
@@ -556,6 +558,105 @@ def get_cv_text(user_id: str) -> str:
     # extracts as real spaces ("m d m i r a j 7 3 0 8 @ g m a i l . c o m").
     # Clean it here so the optimizer LLM never reproduces broken spacing.
     return _detrack_text(raw_text)
+
+
+def extract_pdf_links(pdf_bytes: bytes) -> list[dict[str, str]]:
+    """Extract hyperlink annotations from a PDF in reading order.
+
+    Returns a list of {"anchor", "context", "url"} dicts where:
+      - anchor  = the visible text covered by the link rectangle
+      - context = the full text line the link sits on (helps map repeated
+                  labels like "[GitHub Link]" to the right project)
+      - url     = the embedded URL
+
+    extract_text() drops link annotations, so without this the optimizer never
+    sees the URLs behind words like "LinkedIn" or "[GitHub Link]".
+    """
+    import pypdf  # lazy import
+
+    try:
+        reader = pypdf.PdfReader(BytesIO(pdf_bytes))
+    except Exception:
+        return []
+
+    links: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+
+    for page in reader.pages:
+        # Collect text fragments with their (x, y) baseline positions.
+        frags: list[tuple[float, float, str]] = []
+
+        def _visitor(text, cm, tm, font_dict, font_size):
+            if text and text.strip():
+                frags.append((float(tm[4]), float(tm[5]), text))
+
+        try:
+            page.extract_text(visitor_text=_visitor)
+        except Exception:
+            frags = []
+
+        annots = page.get("/Annots")
+        if not annots:
+            continue
+
+        for ref in annots:
+            try:
+                annot = ref.get_object()
+            except Exception:
+                continue
+            if annot.get("/Subtype") != "/Link":
+                continue
+
+            action = annot.get("/A")
+            uri = None
+            if action is not None:
+                try:
+                    action = action.get_object()
+                except Exception:
+                    pass
+                if action and action.get("/S") == "/URI":
+                    uri = action.get("/URI")
+            if not uri:
+                continue
+
+            rect = annot.get("/Rect")
+            if not rect or len(rect) != 4:
+                continue
+            x0, y0, x1, y1 = (float(v) for v in rect)
+            xlo, xhi = min(x0, x1), max(x0, x1)
+            ylo, yhi = min(y0, y1), max(y0, y1)
+
+            anchor_parts = [
+                ft for fx, fy, ft in frags
+                if (ylo - 2) <= fy <= (yhi + 2) and (xlo - 2) <= fx <= (xhi + 2)
+            ]
+            line_parts = [
+                (fx, ft) for fx, fy, ft in frags if (ylo - 3) <= fy <= (yhi + 3)
+            ]
+            line_parts.sort(key=lambda t: t[0])
+
+            anchor = _detrack_text("".join(anchor_parts).strip())
+            context = _detrack_text("".join(ft for _, ft in line_parts).strip())
+            url = str(uri).strip()
+
+            key = (anchor, url)
+            if key in seen:
+                continue
+            seen.add(key)
+            links.append({"anchor": anchor, "context": context, "url": url})
+
+    return links
+
+
+def get_cv_links(user_id: str) -> list[dict[str, str]]:
+    """Download the user's original CV PDF and extract its embedded hyperlinks."""
+    client = get_service_client()
+    path = f"original/{user_id}/cv.pdf"
+    try:
+        pdf_bytes = client.storage.from_("cvs").download(path)
+    except Exception:
+        return []
+    return extract_pdf_links(pdf_bytes)
 
 
 def upload_optimized_cv(user_id: str, job_id: str, pdf_bytes: bytes) -> str:

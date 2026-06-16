@@ -26,6 +26,7 @@ from src.core.tools import (
     get_processed_jobs,
     get_job_by_id,
     get_cv_text,
+    get_cv_links,
     trigger_pipeline,
 )
 
@@ -215,9 +216,11 @@ async def optimize_cv(
         raise HTTPException(status_code=403, detail="This job does not belong to you.")
 
     cv_text = get_cv_text(job["user_id"])
+    cv_links = get_cv_links(job["user_id"])
 
     initial_state = {
         "cv_text": cv_text,
+        "cv_links": cv_links,
         "job_description": job.get("job_description_md", ""),
         "job_id": job_id,
         "user_id": job["user_id"],

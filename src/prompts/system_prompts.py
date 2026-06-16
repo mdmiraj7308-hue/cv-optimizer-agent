@@ -115,6 +115,15 @@ HTML STRUCTURE REQUIREMENTS:
   .skill-line {{ margin: 1px 0; font-size: 9.5pt; }}
 - Do NOT use JavaScript, external fonts, images, or external CSS
 
+HYPERLINK PRESERVATION (use the "Original CV hyperlinks" list provided below):
+- The original CV's clickable links are supplied as a list of (anchor, context, url) entries.
+- Re-attach each URL by wrapping the matching word(s) in an <a href="URL">…</a> tag in your output.
+- Use the "context" line to map repeated labels correctly: e.g. each project's own "[GitHub Link]" / "[Live Link]" must point to that project's url, matched by the project title in its context.
+- Stable contact links (LinkedIn, GitHub profile, email) go in the header/contact line.
+- Use ONLY the exact URLs from the provided list. NEVER invent, guess, or modify a URL.
+- If a word has no matching url in the list, leave it as plain text (do not linkify it).
+- Keep the visible anchor text natural (e.g. "GitHub", "Live Demo", the person's name, or the profile URL) — do not print raw "[GitHub Link]" brackets unless that is the real anchor text.
+
 INSTRUCTIONS:
 - Return ONLY the complete HTML document (starting with <!DOCTYPE html>), no explanations.
 - The output must read as a polished version of the SAME CV, not a generic template.
@@ -130,6 +139,11 @@ OPTIMIZER_USER_TEMPLATE = """\
 
 ---
 
+## Original CV hyperlinks
+{cv_links}
+
+---
+
 ## Target Job
 **Title**: {job_title}
 **Company**: {company}
@@ -140,6 +154,8 @@ OPTIMIZER_USER_TEMPLATE = """\
 Rewrite the CV as a ONE-PAGE ATS-optimised HTML tailored to this role.
 
 IMPORTANT: Keep ALL sections, roles, bullets, skill categories, education, training, and availability details from the original CV. Rephrase for the job where helpful, but do NOT omit information or produce a sparse half-page document.
+
+Re-attach the hyperlinks above using <a href="URL"> tags on the matching words, using the exact URLs only.
 
 Return ONLY the HTML.
 """
