@@ -539,10 +539,47 @@ def get_all_scheduled_profiles() -> list[dict[str, Any]]:
     return response.data or []
 
 
+def _extract_text_reading_order(pdf_bytes: bytes) -> str:
+    """Extract PDF text in true visual reading order using pdfminer.six.
+
+    pypdf's extract_text() follows the PDF content stream, which on some CVs is
+    ordered differently from the visual layout (e.g. EDUCATION printed before
+    PROFESSIONAL EXPERIENCE even though it appears last on the page). pdfminer
+    with all_texts layout analysis plus a top-to-bottom / left-to-right sort
+    reconstructs the order the human actually reads — so the optimizer mirrors
+    the real section order. Returns "" on any failure so the caller can fall back.
+    """
+    try:
+        from pdfminer.high_level import extract_pages
+        from pdfminer.layout import LTTextLine, LAParams
+    except Exception:
+        return ""
+
+    def _walk(obj):
+        for child in obj:
+            if isinstance(child, LTTextLine):
+                yield child
+            elif hasattr(child, "__iter__"):
+                yield from _walk(child)
+
+    try:
+        laparams = LAParams(all_texts=True)
+        rows: list[tuple[int, float, float, str]] = []
+        for page_idx, page in enumerate(extract_pages(BytesIO(pdf_bytes), laparams=laparams)):
+            for line in _walk(page):
+                txt = line.get_text().strip()
+                if txt:
+                    # Cluster y to ~2pt so segments on one visual line stay together.
+                    rows.append((page_idx, -round(line.y0 / 2) * 2, round(line.x0, 1), txt))
+    except Exception:
+        return ""
+
+    rows.sort(key=lambda r: (r[0], r[1], r[2]))
+    return "\n".join(r[3] for r in rows)
+
+
 def get_cv_text(user_id: str) -> str:
     """Download the user's original CV PDF from Supabase Storage and extract text."""
-    import pypdf  # lazy import
-
     client = get_service_client()
     path = f"original/{user_id}/cv.pdf"
 
@@ -551,12 +588,24 @@ def get_cv_text(user_id: str) -> str:
     except Exception:
         return ""
 
-    reader = pypdf.PdfReader(BytesIO(pdf_bytes))
-    text_parts = [page.extract_text() or "" for page in reader.pages]
-    raw_text = "\n".join(text_parts).strip()
-    # Some source CVs style their header with CSS letter-spacing, which pypdf
-    # extracts as real spaces ("m d m i r a j 7 3 0 8 @ g m a i l . c o m").
-    # Clean it here so the optimizer LLM never reproduces broken spacing.
+    # Preferred: pdfminer in true visual reading order.
+    raw_text = _extract_text_reading_order(pdf_bytes)
+
+    # Fallback: pypdf (content-stream order) if pdfminer produced nothing.
+    if not raw_text.strip():
+        try:
+            import pypdf  # lazy import
+
+            reader = pypdf.PdfReader(BytesIO(pdf_bytes))
+            raw_text = "\n".join(page.extract_text() or "" for page in reader.pages).strip()
+        except Exception:
+            return ""
+
+    # Some fonts decode en/em dashes to the replacement char; normalize to "-".
+    raw_text = raw_text.replace("\ufffd", "-")
+    # Some source CVs style their header with letter-spacing, which extracts as
+    # real spaces ("m d m i r a j 7 3 0 8 @ g m a i l . c o m"). Clean it so the
+    # optimizer never reproduces broken spacing.
     return _detrack_text(raw_text)
 
 

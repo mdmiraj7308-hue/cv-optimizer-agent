@@ -23,6 +23,9 @@ xhtml2pdf[renderpm]>=0.2.16
 # and needs a C compiler/cairo headers absent from python:slim). Keeps install wheel-only.
 svglib<1.6
 pypdf>=4.2.0
+# pdfminer.six extracts CV text in true visual reading order (pypdf follows the
+# PDF content stream, which can scramble section order). Pure-python, wheel-only.
+pdfminer.six>=20240706
 
 # ─── Supabase ────────────────────────────────────────────────────────────────
 supabase>=2.5.0
