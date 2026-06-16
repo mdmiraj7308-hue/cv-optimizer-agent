@@ -579,22 +579,13 @@ def extract_pdf_links(pdf_bytes: bytes) -> list[dict[str, str]]:
     except Exception:
         return []
 
-    links: list[dict[str, str]] = []
-    seen: set[tuple[str, str]] = set()
+    # (page_index, -y_top, x_left) sort key keeps links in natural reading order
+    # (top-to-bottom, left-to-right), which lets the optimizer map them by both
+    # position and URL slug even when anchor text can't be recovered.
+    ordered: list[tuple[tuple[int, float, float], dict[str, str]]] = []
+    seen: set[str] = set()
 
-    for page in reader.pages:
-        # Collect text fragments with their (x, y) baseline positions.
-        frags: list[tuple[float, float, str]] = []
-
-        def _visitor(text, cm, tm, font_dict, font_size):
-            if text and text.strip():
-                frags.append((float(tm[4]), float(tm[5]), text))
-
-        try:
-            page.extract_text(visitor_text=_visitor)
-        except Exception:
-            frags = []
-
+    for page_idx, page in enumerate(reader.pages):
         annots = page.get("/Annots")
         if not annots:
             continue
@@ -623,29 +614,17 @@ def extract_pdf_links(pdf_bytes: bytes) -> list[dict[str, str]]:
             if not rect or len(rect) != 4:
                 continue
             x0, y0, x1, y1 = (float(v) for v in rect)
-            xlo, xhi = min(x0, x1), max(x0, x1)
-            ylo, yhi = min(y0, y1), max(y0, y1)
+            xlo = min(x0, x1)
+            ytop = max(y0, y1)
 
-            anchor_parts = [
-                ft for fx, fy, ft in frags
-                if (ylo - 2) <= fy <= (yhi + 2) and (xlo - 2) <= fx <= (xhi + 2)
-            ]
-            line_parts = [
-                (fx, ft) for fx, fy, ft in frags if (ylo - 3) <= fy <= (yhi + 3)
-            ]
-            line_parts.sort(key=lambda t: t[0])
-
-            anchor = _detrack_text("".join(anchor_parts).strip())
-            context = _detrack_text("".join(ft for _, ft in line_parts).strip())
             url = str(uri).strip()
-
-            key = (anchor, url)
-            if key in seen:
+            if url in seen:
                 continue
-            seen.add(key)
-            links.append({"anchor": anchor, "context": context, "url": url})
+            seen.add(url)
+            ordered.append(((page_idx, -ytop, xlo), {"anchor": "", "context": "", "url": url}))
 
-    return links
+    ordered.sort(key=lambda t: t[0])
+    return [d for _, d in ordered]
 
 
 def get_cv_links(user_id: str) -> list[dict[str, str]]:

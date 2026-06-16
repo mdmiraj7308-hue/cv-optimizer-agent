@@ -105,21 +105,29 @@ def evaluator_node(state: EvalState) -> EvalState:
 
 
 def _format_cv_links(links: list[dict] | None) -> str:
-    """Render extracted CV hyperlinks as a compact list for the optimizer prompt."""
+    """Render extracted CV hyperlinks (in document reading order) for the prompt."""
     if not links:
         return "(No embedded links found in the original CV.)"
     lines = []
-    for link in links:
-        anchor = (link.get("anchor") or "").strip() or "(no anchor text)"
-        context = (link.get("context") or "").strip()
+    for i, link in enumerate(links, 1):
         url = (link.get("url") or "").strip()
         if not url:
             continue
-        entry = f'- anchor: "{anchor}" | url: {url}'
+        anchor = (link.get("anchor") or "").strip()
+        context = (link.get("context") or "").strip()
+        entry = f"{i}. {url}"
+        if anchor:
+            entry += f'  (anchor: "{anchor}")'
         if context:
-            entry += f' | context: "{context}"'
+            entry += f'  (context: "{context}")'
         lines.append(entry)
-    return "\n".join(lines) if lines else "(No embedded links found in the original CV.)"
+    if not lines:
+        return "(No embedded links found in the original CV.)"
+    return (
+        "\n".join(lines)
+        + "\n(Links are listed in top-to-bottom reading order of the original CV. "
+        "Map each to the matching item using its URL slug and position.)"
+    )
 
 
 def optimizer_node(state: OptimizeState) -> OptimizeState:
