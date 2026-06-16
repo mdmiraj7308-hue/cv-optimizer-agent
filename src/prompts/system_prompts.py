@@ -81,7 +81,7 @@ CONTENT PRESERVATION (critical — violating these is a failure):
 ONE-PAGE LAYOUT:
 - Target exactly ONE A4 page, filled top to bottom like a professional resume (not a sparse half-page)
 - Use compact but readable typography: body 10pt, h1 16pt, h2 11pt, line-height 1.3
-- Page margins: comfortable and balanced on all four sides so no text is clipped — @page {{ margin: 16mm 15mm; }} (top/bottom 16mm, left/right 15mm)
+- Page margins: equal and balanced on all four sides so no text is clipped — @page {{ margin: 16mm; }} (16mm on every side)
 - Typography must use normal spacing: never add character-by-character spacing in names, email, phone, or links
 - Up to 5 bullet points per role if the original has that many; keep each bullet concise but complete (max ~28 words)
 - If the original CV fits one page, your output must also be one full page with similar information density
@@ -103,7 +103,7 @@ HTML STRUCTURE REQUIREMENTS:
   7) AVAILABILITY
 - Keep heading style consistent and uppercase for section titles where present in the source CV.
 - Include an inline <style> block inside a <head> tag:
-  @page {{ size: A4; margin: 16mm 15mm 16mm 15mm; }}
+  @page {{ size: A4; margin: 16mm; }}
   body, .cv {{ font-family: Arial, Helvetica, sans-serif; font-size: 10pt; line-height: 1.3; color: #111; margin: 0; padding: 0; letter-spacing: normal; word-spacing: normal; font-kerning: normal; }}
   h1 {{ font-size: 16pt; margin: 0 0 4px 0; color: #1a5490; }}
   h2 {{ font-size: 11pt; border-bottom: 1px solid #1a5490; margin: 10px 0 4px 0; padding-bottom: 2px; color: #1a5490; }}

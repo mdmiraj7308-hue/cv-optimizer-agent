@@ -274,20 +274,17 @@ def _layout_override_css(scale: float) -> str:
         line_height = 1.20
     else:
         line_height = 1.12
-    # Keep fixed, balanced margins on all four sides.
-    # We only reduce typography density, never page margins.
-    margin_v = 16
-    margin_h = 15
+    # NOTE: page margins are owned exclusively by _base_layout_style() so there
+    # is never a second @page rule to confuse xhtml2pdf. This block only tunes
+    # typography density (font sizes / spacing) for fit-to-one-page passes.
     h2_top = max(4, round(10 * scale))
     return (
         "<style>"
-        f"@page {{ size: A4; margin: {margin_v}mm {margin_h}mm !important; }}"
         "html, body, .cv { letter-spacing: normal !important; word-spacing: normal !important; "
         "font-kerning: normal !important; }"
         f"body, .cv {{ font-size: {body}pt !important; line-height: {line_height} !important; }}"
         f"h1 {{ font-size: {h1}pt !important; margin: 0 0 3px 0 !important; }}"
-        f"h2 {{ font-size: {h2}pt !important; margin: {h2_top}px 0 3px 0 !important;"
-        " padding-bottom: 1px !important; }"
+        f"h2 {{ font-size: {h2}pt !important; margin: {h2_top}px 0 3px 0 !important; }}"
         f"p, li {{ font-size: {body}pt !important; }}"
         f".contact {{ font-size: {contact}pt !important; }}"
         f".skill-line {{ font-size: {skill}pt !important; margin: 1px 0 !important; }}"
@@ -297,6 +294,39 @@ def _layout_override_css(scale: float) -> str:
         ".role-title { margin: 0 0 1px 0 !important; }"
         "</style>"
     )
+
+
+# A single, authoritative page-margin value (mm) used on every render pass so
+# all four sides stay balanced and content never touches the page edge.
+PAGE_MARGIN_MM = 16
+
+_PAGE_RULE_RE = re.compile(r"(?is)@page\s*\{[^}]*\}")
+
+
+def _base_layout_style(margin_mm: int = PAGE_MARGIN_MM) -> str:
+    """The one and only authoritative page/layout style block.
+
+    Defines equal four-side A4 margins, neutralizes stray borders/widths that
+    can push content past the right edge, enforces normal glyph spacing, and
+    gives section headings a clean, consistent separation line.
+    """
+    return (
+        "<style>"
+        f"@page {{ size: a4; margin: {margin_mm}mm; }}"
+        "html, body { margin: 0; padding: 0; }"
+        "body, .cv { border: 0; max-width: 100%; "
+        "letter-spacing: normal; word-spacing: normal; font-kerning: normal; }"
+        "table, img { max-width: 100%; }"
+        # Section separation line — matches the source CV: thin, full-width rule.
+        "h2 { border-bottom: 1px solid #1a5490; padding-bottom: 2px; }"
+        "</style>"
+    )
+
+
+def _force_page_layout(html: str, margin_mm: int = PAGE_MARGIN_MM) -> str:
+    """Strip any model-supplied @page rule, then inject our authoritative one."""
+    html = _PAGE_RULE_RE.sub("", html)
+    return _inject_style(html, _base_layout_style(margin_mm))
 
 
 def _detrack_text(text: str) -> str:
@@ -389,22 +419,16 @@ def html_to_pdf(html: str) -> bytes:
     (or we reach the smallest acceptable scale).
     """
     html = _normalize_text_tracking(html)
-    # Always inject a typographic guard layer for consistent kerning/spacing.
-    html = _inject_style(
-        html,
-        "<style>"
-        "@page { size: A4; margin: 16mm 15mm 16mm 15mm !important; }"
-        "html, body, .cv { letter-spacing: normal !important; word-spacing: normal !important; "
-        "font-kerning: normal !important; }"
-        "</style>",
-    )
+    # Enforce one authoritative page layout: equal four-side margins, neutralized
+    # borders/widths, and a consistent section separation line.
+    html = _force_page_layout(html)
 
     pdf_bytes = _render_pdf(html)
     if _pdf_page_count(pdf_bytes) <= 1:
         # If content is short, gently enlarge typography until just before overflow
-        # so the document better fills the full printable page.
+        # so the document better fills the page — without ever touching margins.
         best = pdf_bytes
-        for scale in (1.03, 1.06, 1.10, 1.14):
+        for scale in (1.03, 1.06, 1.09):
             expanded_html = _inject_style(html, _layout_override_css(scale))
             candidate = _render_pdf(expanded_html)
             if _pdf_page_count(candidate) <= 1:
