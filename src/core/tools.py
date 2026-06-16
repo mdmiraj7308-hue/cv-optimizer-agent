@@ -17,10 +17,13 @@ from io import BytesIO
 from typing import Any
 
 import httpx
+import logging
 from supabase import create_client, Client
 
 from src.config.settings import settings
 from src.core.state import ScrapedJob, UserPrefs
+
+logger = logging.getLogger(__name__)
 
 # ── Supabase clients ──────────────────────────────────────────────────────────
 # anon client — used by Streamlit (respects RLS via user JWT)
@@ -593,6 +596,11 @@ def get_cv_text(user_id: str) -> str:
 
     # Fallback: pypdf (content-stream order) if pdfminer produced nothing.
     if not raw_text.strip():
+        logger.warning(
+            "pdfminer reading-order extraction returned empty for user CV; "
+            "falling back to pypdf (section order may be wrong). "
+            "Ensure pdfminer.six is installed in production."
+        )
         try:
             import pypdf  # lazy import
 

@@ -10,6 +10,11 @@ import logging
 
 from src.core.llms import TokenUsageLogger
 from src.core.state import EvalState, OptimizeState
+from src.core.cv_structure import (
+    parse_cv_structure,
+    format_structure_blueprint,
+    enforce_cv_structure,
+)
 from src.core.tools import (
     scrape_linkedin_jobs,
     save_processed_job,
@@ -134,9 +139,14 @@ def optimizer_node(state: OptimizeState) -> OptimizeState:
     """Call the optimizer chain to rewrite the CV as ATS-optimised HTML."""
     logger.info("optimizer_node: generating optimized CV for job_id=%s", state["job_id"])
 
+    cv_text = state["cv_text"] or "(No CV provided)"
+    cv_structure = parse_cv_structure(cv_text)
+    structure_blueprint = format_structure_blueprint(cv_structure)
+
     html = optimizer_chain.invoke(
         {
-            "cv_text": state["cv_text"] or "(No CV provided)",
+            "cv_text": cv_text,
+            "cv_structure_blueprint": structure_blueprint,
             "cv_links": _format_cv_links(state.get("cv_links")),
             "job_title": state.get("job_title", ""),
             "company": state.get("company", ""),
@@ -152,7 +162,9 @@ def optimizer_node(state: OptimizeState) -> OptimizeState:
     if html.endswith("```"):
         html = html.rsplit("```", 1)[0]
 
-    return {**state, "optimized_cv_html": html.strip()}
+    html = enforce_cv_structure(html.strip(), cv_structure)
+
+    return {**state, "optimized_cv_html": html}
 
 
 def pdf_node(state: OptimizeState) -> OptimizeState:

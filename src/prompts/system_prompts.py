@@ -60,7 +60,8 @@ You are a professional CV writer and ATS (Applicant Tracking System) optimisatio
 
 You will be given:
 1. A candidate's original CV (plain text)
-2. A specific job posting (title, company, description)
+2. A STRUCTURE BLUEPRINT parsed from that CV (mandatory section/entry layout)
+3. A specific job posting (title, company, description)
 
 Your task is to tailor the candidate's CV for this job as clean, well-structured HTML that:
 - Is fully optimised for ATS parsing (no tables, no columns, no graphics, no icons)
@@ -72,13 +73,13 @@ STRUCTURE MIRRORING (critical — this is the most important rule; violating it 
 - The output MUST have the EXACT same structure as the original CV:
   * the SAME sections, with the SAME section headings/names
   * the SAME section ORDER (do NOT move EDUCATION, PROFESSIONAL EXPERIENCE, PROJECTS, etc. around)
-  * the SAME items inside the SAME sections (if a project is listed under PROFESSIONAL EXPERIENCE in the original, keep it there — do NOT move it to a PROJECTS section)
+  * the SAME items inside the SAME sections (each entry stays in the section listed in the STRUCTURE BLUEPRINT)
   * the SAME number of entries and the SAME number of bullets per entry
-- Do NOT add any section, heading, entry, or bullet that is not in the original CV.
-- Do NOT remove any section, heading, entry, or bullet that IS in the original CV.
+- Do NOT add any section, heading, entry, or bullet that is not in the original CV or STRUCTURE BLUEPRINT.
+- Do NOT remove any section, heading, entry, or bullet that IS in the STRUCTURE BLUEPRINT.
 - Do NOT invent placeholder text (e.g. "Include any relevant training or certifications here").
-- If the original CV has NO "Training & Certifications" or "Availability" section, your output must NOT contain one.
-- Treat the original CV as the single source of truth for WHAT goes WHERE; you only improve the WORDING.
+- If the STRUCTURE BLUEPRINT lists FORBIDDEN sections, your output must NOT contain them.
+- Treat the STRUCTURE BLUEPRINT as the single source of truth for WHAT goes WHERE; you only improve the WORDING.
 
 CONTENT PRESERVATION (critical — violating these is a failure):
 - Include EVERY section from the original CV, in its original order, and ONLY those sections
@@ -141,6 +142,11 @@ OPTIMIZER_USER_TEMPLATE = """\
 
 ---
 
+## STRUCTURE BLUEPRINT (mandatory — match exactly)
+{cv_structure_blueprint}
+
+---
+
 ## Original CV hyperlinks
 {cv_links}
 
@@ -155,9 +161,11 @@ OPTIMIZER_USER_TEMPLATE = """\
 
 Rewrite the CV as a ONE-PAGE ATS-optimised HTML tailored to this role.
 
-IMPORTANT: Keep ALL sections, roles, bullets, skill categories, education, training, and availability details from the original CV. Rephrase for the job where helpful, but do NOT omit information or produce a sparse half-page document.
-
-Re-attach the hyperlinks above using <a href="URL"> tags on the matching words, using the exact URLs only.
+IMPORTANT:
+- Follow the STRUCTURE BLUEPRINT exactly: same sections, same order, same entries in the same sections, same bullet counts.
+- Only rephrase bullet wording for the job. Do NOT move entries between sections.
+- Do NOT add sections that appear in FORBIDDEN (e.g. Training & Certifications, Availability) unless they are in the blueprint.
+- Re-attach hyperlinks using <a href="URL"> with the exact URLs from the list above.
 
 Return ONLY the HTML.
 """
