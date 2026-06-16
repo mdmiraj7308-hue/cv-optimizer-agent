@@ -299,6 +299,48 @@ def _layout_override_css(scale: float) -> str:
     )
 
 
+def _detrack_text(text: str) -> str:
+    """Remove letter-spacing (tracking) artifacts from plain text.
+
+    PDFs that style their header with CSS letter-spacing extract via pypdf as
+    real space characters, e.g.:
+        "M D Miraj Islam"
+        "mdmiraj7308 @ gmail . c o m"
+        "github . c o m / mdmiraj7308 - h u e"
+        "+ 8801794800770"
+    This normalizes those back to natural text so the LLM never reproduces them.
+    """
+    if not text:
+        return text
+
+    # Process line-by-line so collapsing never bridges across line breaks.
+    lines: list[str] = []
+    for line in text.split("\n"):
+        # 1) Collapse runs of single characters: "c o m" -> "com", "M D" -> "MD".
+        #    Anchored with non-alphanumeric look-arounds so a run can never eat
+        #    into adjacent real words (e.g. "Founded a digital" is left intact).
+        line = re.sub(
+            r"(?<![A-Za-z0-9])(?:[A-Za-z0-9] ){1,}[A-Za-z0-9](?![A-Za-z0-9])",
+            lambda m: m.group(0).replace(" ", ""),
+            line,
+        )
+        # 2) Tighten spacing around email "@" and dotted domains.
+        line = re.sub(r"\s*@\s*", "@", line)
+        line = re.sub(r"(?<=\w)\s*\.\s*(?=\w)", ".", line)
+        # 3) Tighten spacing around URL path separators ("github.com / user").
+        line = re.sub(r"(?<=\w)\s*/\s*(?=\w)", "/", line)
+        # 4) Tighten spacing around hyphens between word chars (URL slugs, ranges).
+        line = re.sub(r"(?<=\w)\s*-\s*(?=\w)", "-", line)
+        # 5) Collapse "+ <digits>" and spaces inside long digit runs (phones).
+        line = re.sub(r"(?<=\+)\s+(?=\d)", "", line)
+        line = re.sub(r"(?<=\d)\s+(?=\d)", "", line)
+        # Normalize any leftover repeated spaces.
+        line = re.sub(r"[ \t]{2,}", " ", line)
+        lines.append(line)
+
+    return "\n".join(lines)
+
+
 def _normalize_text_tracking(html: str) -> str:
     """Normalize accidental letter-by-letter tracking in model-generated text nodes."""
     parts = re.split(r"(<[^>]+>)", html)
@@ -320,15 +362,7 @@ def _normalize_text_tracking(html: str) -> str:
             out.append(part)
             continue
 
-        # Collapse artificial spacing patterns like:
-        # "M D M I R A J I S L A M" -> "MDMIRAJISLAM"
-        # "m d m i r a j 7 3 0 8"   -> "mdmiraj7308"
-        compact = re.sub(
-            r"\b(?:[A-Za-z0-9]\s+){3,}[A-Za-z0-9]\b",
-            lambda m: re.sub(r"\s+", "", m.group(0)),
-            part,
-        )
-        out.append(compact)
+        out.append(_detrack_text(part))
 
     return "".join(out)
 
@@ -493,7 +527,11 @@ def get_cv_text(user_id: str) -> str:
 
     reader = pypdf.PdfReader(BytesIO(pdf_bytes))
     text_parts = [page.extract_text() or "" for page in reader.pages]
-    return "\n".join(text_parts).strip()
+    raw_text = "\n".join(text_parts).strip()
+    # Some source CVs style their header with CSS letter-spacing, which pypdf
+    # extracts as real spaces ("m d m i r a j 7 3 0 8 @ g m a i l . c o m").
+    # Clean it here so the optimizer LLM never reproduces broken spacing.
+    return _detrack_text(raw_text)
 
 
 def upload_optimized_cv(user_id: str, job_id: str, pdf_bytes: bytes) -> str:
